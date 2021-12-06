@@ -1,3 +1,9 @@
+## Extending VQ-VAE with Mutual Information
+
+
+### Originally forked from github: ritheshkumar95/pytorch-vqvae 
+(Original README follows ...)
+
 ## Reproducing Neural Discrete Representation Learning
 ### Course Project for [IFT 6135 - Representation Learning](https://ift6135h18.wordpress.com/)
 
