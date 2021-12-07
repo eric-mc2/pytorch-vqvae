@@ -1,5 +1,15 @@
 ## Extending VQ-VAE with Mutual Information
 
+### Installation
+``` 
+conda install Pillow torch torchvision numpy tensorboardX
+```
+### 
+1. To train on MNIST
+```
+PROJECT_ROOT=/path/to/somewhere/outside/of/repo
+python vqvae.py --dataset mnist --data-folder "$PROJECT_ROOT""/data/mnist" --output-folder models/vqvae
+```
 
 ### Originally forked from github: ritheshkumar95/pytorch-vqvae 
 (Original README follows ...)

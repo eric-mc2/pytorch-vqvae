@@ -61,10 +61,10 @@ def main(args):
     writer = SummaryWriter('./logs/{0}'.format(args.output_folder))
     save_filename = './models/{0}'.format(args.output_folder)
 
-    if args.dataset in ['mnist', 'fashion-mnist', 'cifar10']:
+    if args.dataset in ['mnist', 'fashion-mnist']:
         transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            transforms.Normalize((0.5), (0.5))
         ])
         if args.dataset == 'mnist':
             # Define the train & test datasets
@@ -80,13 +80,18 @@ def main(args):
             test_dataset = datasets.FashionMNIST(args.data_folder,
                 train=False, transform=transform)
             num_channels = 1
-        elif args.dataset == 'cifar10':
-            # Define the train & test datasets
-            train_dataset = datasets.CIFAR10(args.data_folder,
-                train=True, download=True, transform=transform)
-            test_dataset = datasets.CIFAR10(args.data_folder,
-                train=False, transform=transform)
-            num_channels = 3
+        valid_dataset = test_dataset
+    elif args.dataset == 'cifar10':
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+        # Define the train & test datasets
+        train_dataset = datasets.CIFAR10(args.data_folder,
+            train=True, download=True, transform=transform)
+        test_dataset = datasets.CIFAR10(args.data_folder,
+            train=False, transform=transform)
+        num_channels = 3
         valid_dataset = test_dataset
     elif args.dataset == 'miniimagenet':
         transform = transforms.Compose([
