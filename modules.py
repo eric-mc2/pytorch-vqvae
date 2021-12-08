@@ -203,15 +203,17 @@ class VectorQuantizedVAE(nn.Module):
         # encoded_samples.shape == F x B x K
         encoded_samples = torch.empty((self.future_window_lin, batch_size, K)).float()
         #logger.debug(f" encoded_samples shape {encoded_samples.shape}")
-        for i in torch.arange(0, self.future_window_lin):
+        for i in torch.arange(1, self.future_window_lin+1):
             row = torch.div(p_sample+i, im_size_w, rounding_mode='floor')
             col = (p_sample+i)%im_size_w
             encoded_sample = z_q_x_st_[:, row, col, :]
-            encoded_samples[i] = encoded_sample.view(batch_size, K)
+            encoded_samples[i-1] = encoded_sample.view(batch_size, K)
         
         # Forward seq is input to GRU. Drawn from past.
         # forward_seq.shape == B x D*D x K
-        forward_seq = z_q_x_st_[:, :p_sample, :p_sample, :]
+        row = torch.div(p_sample + 1, im_size_w, rounding_mode='floor')
+        col = (p_sample + 1)%im_size_w
+        forward_seq = z_q_x_st_[:, :row, :col, :]
         forward_seq_lin = forward_seq.reshape((forward_seq.shape[0],
                                             forward_seq.shape[1]*forward_seq.shape[2],
                                             forward_seq.shape[3]))
