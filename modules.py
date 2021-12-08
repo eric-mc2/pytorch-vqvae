@@ -198,7 +198,7 @@ class VectorQuantizedVAE(nn.Module):
         # new z_q_x_.shape == B x D x D x K
         z_q_x_st_, z_q_x_ = z_q_x_st.permute((0,2,3,1)), z_q_x.permute((0,2,3,1))
         #print(f"DEBUG: z_q_x_ shape {z_q_x_.shape}")
-        nce = 0 # average over patches and batch
+        nce = torch.tensor(0.) # average over patches and batch
         # Encoded samples are for negative discriminator. Drawn from future.
         # encoded_samples.shape == F x B x K
         encoded_samples = torch.empty((self.future_window_lin, batch_size, K)).float()
@@ -235,8 +235,8 @@ class VectorQuantizedVAE(nn.Module):
         for i in torch.arange(0, self.future_window_lin):
             total = torch.mm(encoded_samples[i], torch.transpose(pred[i], 0, 1))
             correct = torch.sum(torch.eq(torch.argmax(self.softmax(total), dim=0), torch.arange(0, batch_size))) # correct is a tensor
-            nce += torch.sum(torch.diag(self.lsoftmax(total))) # nce is a tensor
-        nce /= -1. * batch_size * self.future_window_lin
+            nce = nce + torch.sum(torch.diag(self.lsoftmax(total))) # nce is a tensor
+        nce = -1. * nce / (batch_size * self.future_window_lin)
         accuracy = 1.*correct.item()/batch_size
         # x_tilde = self.decoder(z_q_x_st)
         # return x_tilde, z_e_x, z_q_x
