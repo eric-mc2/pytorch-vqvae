@@ -213,10 +213,7 @@ class VectorQuantizedVAE(nn.Module):
         # forward_seq.shape == B x D*D x K
         row = torch.div(p_sample + 1, im_size_w, rounding_mode='floor')
         col = (p_sample + 1)%im_size_w
-        forward_seq = z_q_x_st_[:, :row, :col, :]
-        forward_seq_lin = forward_seq.reshape((forward_seq.shape[0],
-                                            forward_seq.shape[1]*forward_seq.shape[2],
-                                            forward_seq.shape[3]))
+        forward_seq_lin = z_q_x_st_.reshape((batch_size, im_size_h*im_size_w, K))[:, p_sample + 1, :]
         logger.debug(f" forward_seq shape {forward_seq_lin.shape}")
         logger.debug(f" hidden shape {hidden.shape}")
         # output.shape == B x D*D x H
