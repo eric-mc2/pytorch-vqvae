@@ -219,6 +219,10 @@ class VectorQuantizedVAE(nn.Module):
         #print(f"DEBUG: hidden shape {hidden.shape}")
         # output.shape == B x D*D x H
         # hidden.shape == 1 x B x H
+        if forward_seq_lin.shape[0] == 0:
+            logger.error(f"RNN input has 0 length: {forward_seq_lin.shape}")
+        elif hidden.shape[0] == 0:
+            logger.error(f"Hidden RNN has 0 length: {hidden.shape}")
         output, hidden = self.gru(forward_seq_lin, hidden)
         #print(f"DEBUG: output shape {output.shape}")
         #print(f"DEBUG: hiddenoutput shape {hidden.shape}")
