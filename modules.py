@@ -143,8 +143,8 @@ class VectorQuantizedVAE(nn.Module):
         # #print(f"DEBUG: GRU shape: 'input_features':{K}, 'hidden_features':{K_h}")
         self.gru = nn.GRU(K//2, K_h, num_layers=1, bidirectional=False, batch_first=True)
         self.Wk  = nn.ModuleList([nn.Linear(K_h, K//2) for i in range(self.future_window_lin)])
-        self.softmax  = nn.Softmax()
-        self.lsoftmax = nn.LogSoftmax()
+        self.softmax  = nn.Softmax(dim=1)
+        self.lsoftmax = nn.LogSoftmax(dim=1)
 
         self.decoder = nn.Sequential(
             ResBlock(dim),
@@ -204,7 +204,7 @@ class VectorQuantizedVAE(nn.Module):
         encoded_samples = torch.empty((self.future_window_lin, batch_size, K)).float()
         #print(f"DEBUG: encoded_samples shape {encoded_samples.shape}")
         for i in torch.arange(0, self.future_window_lin):
-            row = (t_samples[0]+i)//im_size_w
+            row = torch.div(t_samples[0]+i, im_size_w, rounding_mode='floor')
             col = (t_samples[1]+i)%im_size_w
             encoded_sample = z_q_x_st_[:, row, col, :]
             encoded_samples[i-1] = encoded_sample.view(batch_size, K)
@@ -227,7 +227,9 @@ class VectorQuantizedVAE(nn.Module):
         #print(f"DEBUG: output shape {output.shape}")
         #print(f"DEBUG: hiddenoutput shape {hidden.shape}")
         # c_t_.shape == B x H
-        c_t_ = output[:, t_samples[0] // im_size_w + t_samples[1] % im_size_w, :] 
+        row = torch.div(t_samples[0], im_size_w, rounding_mode='floor')
+        col = t_samples[1] % im_size_w
+        c_t_ = output[:, row * im_size_w + col, :] 
         #print(f"DEBUG: c_t_ shape {c_t_.shape}")
         # c_t.shape == B x H
         c_t = c_t_.view(batch_size, K_h)
@@ -241,7 +243,7 @@ class VectorQuantizedVAE(nn.Module):
             correct = torch.sum(torch.eq(torch.argmax(self.softmax(total), dim=0), torch.arange(0, batch_size))) # correct is a tensor
             nce = nce + torch.sum(torch.diag(self.lsoftmax(total))) # nce is a tensor
         nce = -1. * nce / (batch_size * self.future_window_lin)
-        accuracy = 1.*correct.item()/batch_size
+        accuracy = 1.*correct/batch_size
         # x_tilde = self.decoder(z_q_x_st)
         # return x_tilde, z_e_x, z_q_x
         # accuracy, nce, hidden, z_e_x, z_q_x = None, None, None, None, None
