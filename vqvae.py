@@ -5,6 +5,7 @@ from torchvision import transforms, datasets
 from torchvision.utils import save_image, make_grid
 import torchinfo
 import logging
+import os
 
 from modules import VectorQuantizedVAE, to_scalar
 from datasets import MiniImagenet
@@ -19,7 +20,7 @@ def train(data_loader, model, optimizer, args, writer):
 
         optimizer.zero_grad()
         hidden = model.init_hidden(len(images), args.k).to(args.device)
-        accuracy, loss_nce, z_e_x, z_q_x = model(images, hidden)
+        accuracy, loss_nce, hidden, z_e_x, z_q_x = model(images, hidden)
 
         # Reconstruction loss
         # loss_recons = F.mse_loss(x_tilde, images)
@@ -46,7 +47,7 @@ def test(data_loader, model, args, writer):
         for images, _ in data_loader:
             images = images.to(args.device)
             hidden = model.init_hidden(len(images), args.k).to(args.device)
-            accuracy, nce, z_e_x, z_q_x = model(images, hidden)
+            accuracy, nce, hidden, z_e_x, z_q_x = model(images, hidden)
             # loss_recons += F.mse_loss(x_tilde, images)
             loss_nce += nce
             loss_vq += F.mse_loss(z_q_x, z_e_x)
@@ -134,6 +135,8 @@ def main(args):
     fixed_images, _ = next(iter(test_loader))
     fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('original', fixed_grid, 0)
+
+    # if '{0}/model_
 
     model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k).to(args.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
