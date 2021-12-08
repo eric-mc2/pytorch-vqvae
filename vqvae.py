@@ -176,7 +176,7 @@ if __name__ == '__main__':
     import os
     import multiprocessing as mp
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
     parser = argparse.ArgumentParser(description='VQ-VAE')
 
