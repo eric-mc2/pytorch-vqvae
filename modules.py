@@ -207,7 +207,7 @@ class VectorQuantizedVAE(nn.Module):
             row = torch.div(p_sample+i, im_size_w, rounding_mode='floor')
             col = (p_sample+i)%im_size_w
             encoded_sample = z_q_x_st_[:, row, col, :]
-            encoded_samples[i-1] = encoded_sample.view(batch_size, K)
+            encoded_samples[i] = encoded_sample.view(batch_size, K)
         
         # Forward seq is input to GRU. Drawn from past.
         # forward_seq.shape == B x D*D x K
