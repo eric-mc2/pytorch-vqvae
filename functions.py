@@ -1,7 +1,7 @@
 import torch
 from torch.autograd import Function
 
-def cov_loss(x1, x2):
+def cross_cov_svd(x1, x2):
     x1_ = x1.transpose(0,1)
     x1_ = x1_.reshape(x1_.shape[0], -1)
     x2_ = x2.transpose(0,1)
@@ -10,7 +10,7 @@ def cov_loss(x1, x2):
     cov_ = torch.matmul(x1_,x2t.detach()) 
     cov = cov_ - torch.mean(x1_, dim=1) * torch.mean(x2t, dim=0)
     _, svd_d, _ = torch.linalg.svd(cov)
-    return -torch.sum(torch.var(svd_d))
+    return svd_d
 
 class VectorQuantization(Function):
     @staticmethod
