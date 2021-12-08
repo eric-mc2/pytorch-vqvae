@@ -14,6 +14,6 @@ cd "$VQVAE_REPO"
 python vqvae.py --dataset mnist \
     --data-folder "$PROJECT_ROOT""/data/mnist" \
     --output-folder models/vqvae \
-    --device cuda \
     --batch-size 16 \
-    --num-epochs 10
+    --num-epochs 11
+    # --device cuda \

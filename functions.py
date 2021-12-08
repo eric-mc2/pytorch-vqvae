@@ -1,6 +1,19 @@
 import torch
 from torch.autograd import Function
 
+class CovLoss(Function):
+    @staticmethod
+    def forward(ctx, x1, x2):
+        x1_ = x1.transpose(0,1)
+        x1_ = x1_.reshape(x1_.shape[0], -1)
+        x2_ = x2.transpose(0,1)
+        x2_ = x2_.reshape(x2_.shape[0], -1)
+        x2t = x2_.transpose(0,1).detach()
+        cov_ = torch.matmul(x1_,x2t.detach()) 
+        cov = cov_ - torch.mean(x1_, dim=1) * torch.mean(x2t, dim=0)
+        _, svd_d, _ = torch.linalg.svd(cov)
+        return -torch.sum(torch.var(svd_d))
+
 class VectorQuantization(Function):
     @staticmethod
     def forward(ctx, inputs, codebook):
@@ -64,4 +77,5 @@ class VectorQuantizationStraightThrough(Function):
 
 vq = VectorQuantization.apply
 vq_st = VectorQuantizationStraightThrough.apply
+cov_loss = CovLoss.apply
 __all__ = [vq, vq_st]
