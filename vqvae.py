@@ -18,17 +18,26 @@ def train(data_loader, model, optimizer, args, writer):
 
         # Reconstruction loss
         loss_recons = F.mse_loss(x_tilde, images)
+        # Vector quantization & commitment objective
+        zemat = z_e_x.transpose(0,1)
+        zemat = zemat.reshape(zemat.shape[0], -1)
+        zqmat = z_q_x.transpose(0,1)
+        zqmat = zqmat.reshape(zqmat.shape[0], -1)
+        zqtrans = zqmat.transpose(0,1)
+        _, svd_d, _ = torch.linalg.svd(torch.matmul(zqtrans, zqmat.detach()))
+        loss_eig = -torch.sum(torch.var(svd_d))
         # Vector quantization objective
-        loss_vq = F.mse_loss(z_q_x, z_e_x.detach())
+        # loss_vq = F.mse_loss(z_q_x, z_e_x.detach())
         # Commitment objective
-        loss_commit = F.mse_loss(z_e_x, z_q_x.detach())
+        # loss_commit = F.mse_loss(z_e_x, z_q_x.detach())
 
-        loss = loss_recons + loss_vq + args.beta * loss_commit
+        # loss = loss_recons + loss_vq + args.beta * loss_commit
+        loss = loss_recons + loss_eig
         loss.backward()
 
         # Logs
         writer.add_scalar('loss/train/reconstruction', loss_recons.item(), args.steps)
-        writer.add_scalar('loss/train/quantization', loss_vq.item(), args.steps)
+        writer.add_scalar('loss/train/quantization', loss_eig.item(), args.steps)
 
         optimizer.step()
         args.steps += 1
