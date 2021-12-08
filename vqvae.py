@@ -140,14 +140,14 @@ def main(args):
 
     model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k).to(args.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    summary_hidden = model.init_hidden(args.batch_size, args.k).to(args.device)
     
     # Print torch model summary for compile check.
-    # torchinfo.summary(model, 
-    #     input_data={'hidden': summary_hidden,
-    #                 'x': fixed_images},
-    #     device=args.device)
-    # return 0
+    summary_hidden = model.init_hidden(args.batch_size, args.k).to(args.device)
+    torchinfo.summary(model, 
+        input_data={'hidden': summary_hidden,
+                    'x': fixed_images},
+        device=args.device)
+    return 0
 
     # Generate the samples first once
     reconstruction = generate_samples(fixed_images, model, args)

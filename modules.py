@@ -202,7 +202,7 @@ class VectorQuantizedVAE(nn.Module):
         # Encoded samples are for negative discriminator. Drawn from future.
         # encoded_samples.shape == F x B x K
         encoded_samples = torch.empty((self.future_window_lin, batch_size, K)).float()
-        #logger.debug(f" encoded_samples shape {encoded_samples.shape}")
+        logger.debug(f" encoded_samples shape {encoded_samples.shape}")
         for i in torch.arange(1, self.future_window_lin+1):
             row = torch.div(p_sample+i, im_size_w, rounding_mode='floor')
             col = (p_sample+i)%im_size_w
@@ -217,8 +217,8 @@ class VectorQuantizedVAE(nn.Module):
         forward_seq_lin = forward_seq.reshape((forward_seq.shape[0],
                                             forward_seq.shape[1]*forward_seq.shape[2],
                                             forward_seq.shape[3]))
-        # logger.debug(f" forward_seq shape {forward_seq_lin.shape}")
-        # logger.debug(f" hidden shape {hidden.shape}")
+        logger.debug(f" forward_seq shape {forward_seq_lin.shape}")
+        logger.debug(f" hidden shape {hidden.shape}")
         # output.shape == B x D*D x H
         # hidden.shape == 1 x B x H
         # if forward_seq_lin.shape[0] == 0:
@@ -226,10 +226,16 @@ class VectorQuantizedVAE(nn.Module):
         # elif hidden.shape[0] == 0:
         #     logger.error(f"Hidden RNN has 0 length: {hidden.shape}")
         output, hidden = self.gru(forward_seq_lin, hidden)
-        #logger.debug(f" output shape {output.shape}")
-        #logger.debug(f" hiddenoutput shape {hidden.shape}")
+        # logger.debug(f" output shape {output.shape}")
+        # logger.debug(f" hiddenoutput shape {hidden.shape}")
+        # logger.debug(f" psample {p_sample}")
+        if p_sample > output.shape[1]:
+            ct_idx = output.shape[1] - 1
+            logger.warning("C_t index {p_sample} exceeds output length {output.shape[1]}")
+        else:
+            ct_idx = p_sample
         # c_t_.shape == B x H
-        c_t_ = output[:, p_sample, :] 
+        c_t_ = output[:, ct_idx, :] 
         #logger.debug(f" c_t_ shape {c_t_.shape}")
         # c_t.shape == B x H
         c_t = c_t_.view(batch_size, K_h)
