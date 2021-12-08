@@ -142,12 +142,12 @@ def main(args):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     
     # Print torch model summary for compile check.
-    summary_hidden = model.init_hidden(args.batch_size, args.k).to(args.device)
-    torchinfo.summary(model, 
-        input_data={'hidden': summary_hidden,
-                    'x': fixed_images},
-        device=args.device)
-    return 0
+    # summary_hidden = model.init_hidden(args.batch_size, args.k).to(args.device)
+    # torchinfo.summary(model, 
+    #     input_data={'hidden': summary_hidden,
+    #                 'x': fixed_images},
+    #     device=args.device)
+    # return 0
 
     # Generate the samples first once
     reconstruction = generate_samples(fixed_images, model, args)
