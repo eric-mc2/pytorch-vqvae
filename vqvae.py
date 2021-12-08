@@ -3,11 +3,14 @@ import torch
 import torch.nn.functional as F
 from torchvision import transforms, datasets
 from torchvision.utils import save_image, make_grid
+import logging
 
 from modules import VectorQuantizedVAE, to_scalar
 from datasets import MiniImagenet
 
 from tensorboardX import SummaryWriter
+
+logger = logging.getLogger('vqvae')
 
 def train(data_loader, model, optimizer, args, writer):
     for images, _ in data_loader:
@@ -45,18 +48,27 @@ def train(data_loader, model, optimizer, args, writer):
 def test(data_loader, model, args, writer):
     with torch.no_grad():
         loss_recons, loss_vq = 0., 0.
+        loss_recons, loss_eig = 0., 0.
         for images, _ in data_loader:
             images = images.to(args.device)
             x_tilde, z_e_x, z_q_x = model(images)
             loss_recons += F.mse_loss(x_tilde, images)
-            loss_vq += F.mse_loss(z_q_x, z_e_x)
+            # Vector quantization & commitment objective
+            zemat = z_e_x.transpose(0,1)
+            zemat = zemat.reshape(zemat.shape[0], -1)
+            zqmat = z_q_x.transpose(0,1)
+            zqmat = zqmat.reshape(zqmat.shape[0], -1)
+            zqtrans = zqmat.transpose(0,1)
+            _, svd_d, _ = torch.linalg.svd(torch.matmul(zqtrans, zqmat.detach()))
+            loss_eig -= torch.sum(torch.var(svd_d))
+            # loss_vq += F.mse_loss(z_q_x, z_e_x)
 
         loss_recons /= len(data_loader)
         loss_vq /= len(data_loader)
 
     # Logs
     writer.add_scalar('loss/test/reconstruction', loss_recons.item(), args.steps)
-    writer.add_scalar('loss/test/quantization', loss_vq.item(), args.steps)
+    writer.add_scalar('loss/test/quantization', loss_eig.item(), args.steps)
 
     return loss_recons.item(), loss_vq.item()
 
@@ -142,6 +154,7 @@ def main(args):
 
     best_loss = -1.
     for epoch in range(args.num_epochs):
+        logger.info('Epoch {0}/{1}'.format(epoch, args.num_epochs))
         train(train_loader, model, optimizer, args, writer)
         loss, _ = test(valid_loader, model, args, writer)
 
