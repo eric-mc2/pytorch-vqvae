@@ -140,7 +140,7 @@ class VectorQuantizedVAE(nn.Module):
         self.codebook = VQEmbedding(K, dim)
 
         # mi/cpc modules
-        # #logger.debug(f" GRU shape: 'input_features':{K}, 'hidden_features':{K_h}")
+        logger.debug(f" GRU shape: 'input_features':{K}, 'hidden_features':{K_h}")
         self.gru = nn.GRU(K//2, K_h, num_layers=1, bidirectional=False, batch_first=True)
         self.Wk  = nn.ModuleList([nn.Linear(K_h, K//2) for i in range(self.future_window_lin)])
         self.softmax  = nn.Softmax(dim=1)
@@ -181,23 +181,23 @@ class VectorQuantizedVAE(nn.Module):
         return x_tilde
 
     def forward(self, x, hidden):
-        #logger.debug(f" x shape {x.shape}")
+        logger.debug(f" x shape {x.shape}")
         z_e_x = self.encoder(x) # B x K x D X D
         batch_size = x.shape[0]
         K = z_e_x.shape[1] 
         K_h = hidden.shape[-1]
         im_size_h = z_e_x.shape[2]
         im_size_w = z_e_x.shape[3]
-        #logger.debug(f" z_e_x shape {z_e_x.shape}")
+        logger.debug(f" z_e_x shape {z_e_x.shape}")
         z_q_x_st, z_q_x = self.codebook.straight_through(z_e_x) # B x K x D x D
-        #logger.debug(f" z_q_x shape {z_q_x.shape}")
+        logger.debug(f" z_q_x shape {z_q_x.shape}")
         p_sample = torch.randint(self.max_sample_lin, size=(1,)).long() # randomly pick patches
-        #logger.debug(f" max samples: {self.max_sample_lin}")
-        #logger.debug(f" future window: {self.future_window}")
+        logger.debug(f" max samples: {self.max_sample_lin}")
+        logger.debug(f" future window: {self.future_window}")
         # permute z for gru
         # new z_q_x_.shape == B x D x D x K
         z_q_x_st_, z_q_x_ = z_q_x_st.permute((0,2,3,1)), z_q_x.permute((0,2,3,1))
-        #logger.debug(f" z_q_x_ shape {z_q_x_.shape}")
+        logger.debug(f" z_q_x_ shape {z_q_x_.shape}")
         nce = torch.tensor(0.) # average over patches and batch
         # Encoded samples are for negative discriminator. Drawn from future.
         # encoded_samples.shape == F x B x K
@@ -213,7 +213,7 @@ class VectorQuantizedVAE(nn.Module):
         # forward_seq.shape == B x D*D x K
         row = torch.div(p_sample + 1, im_size_w, rounding_mode='floor')
         col = (p_sample + 1)%im_size_w
-        forward_seq_lin = z_q_x_st_.reshape((batch_size, im_size_h*im_size_w, K))[:, p_sample + 1, :]
+        forward_seq_lin = z_q_x_st_.reshape((batch_size, im_size_h*im_size_w, K))[:, :p_sample + 1, :]
         logger.debug(f" forward_seq shape {forward_seq_lin.shape}")
         logger.debug(f" hidden shape {hidden.shape}")
         # output.shape == B x D*D x H
@@ -223,21 +223,16 @@ class VectorQuantizedVAE(nn.Module):
         # elif hidden.shape[0] == 0:
         #     logger.error(f"Hidden RNN has 0 length: {hidden.shape}")
         output, hidden = self.gru(forward_seq_lin, hidden)
-        # logger.debug(f" output shape {output.shape}")
-        # logger.debug(f" hiddenoutput shape {hidden.shape}")
-        # logger.debug(f" psample {p_sample}")
-        if p_sample > output.shape[1]:
-            ct_idx = output.shape[1] - 1
-            logger.warning("C_t index {p_sample} exceeds output length {output.shape[1]}")
-        else:
-            ct_idx = p_sample
+        logger.debug(f" output shape {output.shape}")
+        logger.debug(f" hiddenoutput shape {hidden.shape}")
+        logger.debug(f" psample {p_sample}")
         # c_t_.shape == B x H
-        c_t_ = output[:, ct_idx, :] 
-        #logger.debug(f" c_t_ shape {c_t_.shape}")
+        c_t_ = output[:, p_sample, :] 
+        logger.debug(f" c_t_ shape {c_t_.shape}")
         # c_t.shape == B x H
         c_t = c_t_.view(batch_size, K_h)
-        # logger.debug(f" c_t shape {c_t.shape}")
-        # logger.debug(f" Wk0 shape {self.Wk[0]}")
+        logger.debug(f" c_t shape {c_t.shape}")
+        logger.debug(f" Wk0 shape {self.Wk[0]}")
         pred = torch.empty((self.future_window_lin, batch_size, K)).float()
         for i in torch.arange(0, self.future_window_lin):
             linear = self.Wk[i]

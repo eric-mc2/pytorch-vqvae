@@ -15,7 +15,8 @@ python vqvae.py --dataset mnist \
     --output-folder models/vqvae-cpc \
     --batch-size 16 \
     --num-epochs 2 \
-    --device cuda
+    --device cuda \
+    --logger-lvl DEBUG
 
 
 # --device cuda \

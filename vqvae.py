@@ -74,6 +74,8 @@ def main(args):
     writer = SummaryWriter('./logs/{0}'.format(args.output_folder))
     save_filename = './models/{0}'.format(args.output_folder)
 
+    logging.basicConfig(level=getattr(logging, args.logger_lvl.upper()))
+
     if args.dataset in ['mnist', 'fashion-mnist']:
         transform = transforms.Compose([
             transforms.ToTensor(),
@@ -176,8 +178,6 @@ if __name__ == '__main__':
     import os
     import multiprocessing as mp
 
-    logging.basicConfig(level=logging.DEBUG)
-
     parser = argparse.ArgumentParser(description='VQ-VAE')
 
     # General
@@ -209,6 +209,9 @@ if __name__ == '__main__':
         help='number of workers for trajectories sampling (default: {0})'.format(mp.cpu_count() - 1))
     parser.add_argument('--device', type=str, default='cpu',
         help='set the device (cpu or cuda, default: cpu)')
+    parser.add_argument('--logger-lvl', type=str, default='WARNING',
+        choices=["DEBUG","INFO","WARNING","ERROR","CRITICAL"],
+        help='set the printf verbosity')
 
     args = parser.parse_args()
 
