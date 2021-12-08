@@ -6,7 +6,7 @@ from torchvision.utils import save_image, make_grid
 import logging
 from modules import VectorQuantizedVAE, to_scalar
 from datasets import MiniImagenet
-from functions import cov_loss
+from functions import cross_cov_svd
 
 
 from tensorboardX import SummaryWriter
@@ -23,7 +23,8 @@ def train(data_loader, model, optimizer, args, writer):
         # Reconstruction loss
         loss_recons = F.mse_loss(x_tilde, images)
         # Vector quantization & commitment objective
-        loss_eig = cov_loss(z_e_x, z_q_x)
+        svd = cross_cov_svd(z_e_x, z_q_x)
+        loss_eig = -torch.sum(torch.var(svd)) + F.l1_loss(svd)
         # Vector quantization objective
         # loss_vq = F.mse_loss(z_q_x, z_e_x.detach())
         # Commitment objective
@@ -49,7 +50,9 @@ def test(data_loader, model, args, writer):
             x_tilde, z_e_x, z_q_x = model(images)
             loss_recons += F.mse_loss(x_tilde, images)
             # Vector quantization & commitment objective
-            loss_eig += cov_loss(z_e_x, z_q_x)
+            svd = cross_cov_svd(z_e_x, z_q_x)
+            loss_eig += -torch.sum(torch.var(svd))
+            loss_eig += F.l1_loss(svd)
             # loss_vq += F.mse_loss(z_q_x, z_e_x)
 
         loss_recons /= len(data_loader)
