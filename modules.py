@@ -81,6 +81,7 @@ class VQEmbedding(nn.Module):
     def straight_through(self, z_e_x):
         z_e_x_ = z_e_x.permute(0, 2, 3, 1).contiguous()
         z_q_x_, indices = vq_st(z_e_x_, self.embedding.weight.detach())
+        indices_unflatten = indices.view(z_e_x_.shape[:-1])
         z_q_x = z_q_x_.permute(0, 3, 1, 2).contiguous()
 
         z_q_x_bar_flatten = torch.index_select(self.embedding.weight,
@@ -88,7 +89,7 @@ class VQEmbedding(nn.Module):
         z_q_x_bar_ = z_q_x_bar_flatten.view_as(z_e_x_)
         z_q_x_bar = z_q_x_bar_.permute(0, 3, 1, 2).contiguous()
 
-        return z_q_x, z_q_x_bar
+        return indices_unflatten, z_q_x, z_q_x_bar
 
 
 class ResBlock(nn.Module):
@@ -121,6 +122,26 @@ class VectorQuantizedVAE(nn.Module):
 
         self.codebook = VQEmbedding(K, dim)
 
+        NUM_ORIGINAL_DECODER_LAYERS = 6
+
+        self.context = nn.Sequential(
+            nn.Conv2d(1, 1, 3, 1, 1),
+            nn.BatchNorm2d(1),
+            nn.ReLU(True),
+            nn.Conv2d(1, 1, 3, 1, 1),
+            nn.BatchNorm2d(1),
+            nn.ReLU(True),
+        )
+
+        # TODO: use any auto-regressive model here and mask to make causal
+        self.latent_decoder =  nn.Sequential(
+            nn.Conv2d(1, 1, 5, 1, 1),
+            nn.BatchNorm2d(1),
+            nn.ReLU(True)
+        )
+
+        self.discriminator = nn.Bilinear(dim, 1, 1, bias=False)
+        
         self.decoder = nn.Sequential(
             ResBlock(dim),
             ResBlock(dim),
@@ -146,9 +167,22 @@ class VectorQuantizedVAE(nn.Module):
 
     def forward(self, x):
         z_e_x = self.encoder(x)
-        z_q_x_st, z_q_x = self.codebook.straight_through(z_e_x)
-        x_tilde = self.decoder(z_q_x_st)
-        return x_tilde, z_e_x, z_q_x
+        # z_q_x_st, z_q_x = self.codebook.straight_through(z_e_x)
+        indices, z_q_x_st,  z_q_x = self.codebook.straight_through(z_e_x) # (indexes, vectors)
+        # Indices is (B x W x H), because it reduces vector embeddings -> scalar
+        # Need to add trivial (B x 1 x W x H) to make dimensions match again
+        expanded_indices = indices.unsqueeze(dim=1)
+        # Apparently CNN inputs are floating point? I thought they were 256 color?
+        c_q = self.context(expanded_indices.type(torch.FloatTensor))
+        # x_tilde = self.decoder(z_q_x_st)
+        z_q_tilde_ = torch.index_select(self.codebook.embedding.weight, dim=0, index=indices.flatten())
+        z_q_tilde = z_q_tilde_.view_as(z_q_x)
+        print(f"VQVAE: c_q shape: {c_q.shape}")
+        print(f"VQVAE: ei shape: {expanded_indices.shape}")
+        info_nce = self.discriminator(expanded_indices.permute((2,3,0,1)).squeeze(),
+                                     c_q.permute((2,3,0,1)).squeeze())
+        # return x_tilde, z_e_x, z_q_x
+        return info_nce, z_e_x, z_q_x
 
 
 class GatedActivation(nn.Module):
@@ -199,9 +233,15 @@ class GatedMaskedConv2d(nn.Module):
         if self.mask_type == 'A':
             self.make_causal()
 
+        print(f"GatedMaskedConv2d: h shape: {h.shape}")
         h = self.class_cond_embedding(h)
+        print(f"GatedMaskedConv2d: he shape: {h.shape}")
+        print(f"GatedMaskedConv2d: x_v shape: {x_v.shape}")
         h_vert = self.vert_stack(x_v)
+        print(f"GatedMaskedConv2d: h_vert shape: {h_vert.shape}")
         h_vert = h_vert[:, :, :x_v.size(-1), :]
+        print(f"GatedMaskedConv2d: h_vert shape: {h_vert.shape}")
+        print(f"GatedMaskedConv2d: hexp shape: {h[:,:,None,None].shape}")
         out_v = self.gate(h_vert + h[:, :, None, None])
 
         h_horiz = self.horiz_stack(x_h)

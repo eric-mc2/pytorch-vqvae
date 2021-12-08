@@ -2,7 +2,7 @@
 
 ### Installation
 ``` 
-conda install Pillow torch torchvision numpy tensorboardX
+conda install Pillow torch torchvision numpy tensorboardX pytest
 ```
 ### 
 1. To train on MNIST
