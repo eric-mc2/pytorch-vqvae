@@ -3,31 +3,38 @@ import torch
 import torch.nn.functional as F
 from torchvision import transforms, datasets
 from torchvision.utils import save_image, make_grid
+import torchinfo
+import logging
 
 from modules import VectorQuantizedVAE, to_scalar
 from datasets import MiniImagenet
 
 from tensorboardX import SummaryWriter
 
+logger = logging.getLogger('vqvae')
+
 def train(data_loader, model, optimizer, args, writer):
     for images, _ in data_loader:
         images = images.to(args.device)
 
         optimizer.zero_grad()
-        x_tilde, z_e_x, z_q_x = model(images)
+        hidden = model.init_hidden(len(images), args.k).to(args.device)
+        accuracy, loss_nce, z_e_x, z_q_x = model(images, hidden)
 
         # Reconstruction loss
-        loss_recons = F.mse_loss(x_tilde, images)
+        # loss_recons = F.mse_loss(x_tilde, images)
         # Vector quantization objective
         loss_vq = F.mse_loss(z_q_x, z_e_x.detach())
         # Commitment objective
         loss_commit = F.mse_loss(z_e_x, z_q_x.detach())
 
-        loss = loss_recons + loss_vq + args.beta * loss_commit
+        loss = loss_nce + loss_vq + args.beta * loss_commit
         loss.backward()
 
         # Logs
-        writer.add_scalar('loss/train/reconstruction', loss_recons.item(), args.steps)
+        writer.add_scalar('loss/train/cpc_accuracy', accuracy.item(), args.steps)
+        # writer.add_scalar('loss/train/reconstruction', loss_recons.item(), args.steps)
+        writer.add_scalar('loss/train/nce', loss_nce.item(), args.steps)
         writer.add_scalar('loss/train/quantization', loss_vq.item(), args.steps)
 
         optimizer.step()
@@ -35,18 +42,23 @@ def train(data_loader, model, optimizer, args, writer):
 
 def test(data_loader, model, args, writer):
     with torch.no_grad():
-        loss_recons, loss_vq = 0., 0.
+        loss_recons, loss_vq, loss_nce = 0., 0., 0.
         for images, _ in data_loader:
             images = images.to(args.device)
-            x_tilde, z_e_x, z_q_x = model(images)
-            loss_recons += F.mse_loss(x_tilde, images)
+            hidden = model.init_hidden(len(images), args.k).to(args.device)
+            accuracy, nce, z_e_x, z_q_x = model(images, hidden)
+            # loss_recons += F.mse_loss(x_tilde, images)
+            loss_nce += nce
             loss_vq += F.mse_loss(z_q_x, z_e_x)
 
-        loss_recons /= len(data_loader)
+        # loss_recons /= len(data_loader)
+        loss_nce /= len(data_loader)
         loss_vq /= len(data_loader)
 
     # Logs
-    writer.add_scalar('loss/test/reconstruction', loss_recons.item(), args.steps)
+    writer.add_scalar('loss/test/cpc_accuracy', accuracy.item(), args.steps)
+    # writer.add_scalar('loss/test/reconstruction', loss_recons.item(), args.steps)
+    writer.add_scalar('loss/test/nce', loss_nce.item(), args.steps)
     writer.add_scalar('loss/test/quantization', loss_vq.item(), args.steps)
 
     return loss_recons.item(), loss_vq.item()
@@ -54,7 +66,7 @@ def test(data_loader, model, args, writer):
 def generate_samples(images, model, args):
     with torch.no_grad():
         images = images.to(args.device)
-        x_tilde, _, _ = model(images)
+        x_tilde = model.decode(model.encode(images))
     return x_tilde
 
 def main(args):
@@ -116,7 +128,7 @@ def main(args):
         batch_size=args.batch_size, shuffle=False, drop_last=True,
         num_workers=args.num_workers, pin_memory=True)
     test_loader = torch.utils.data.DataLoader(test_dataset,
-        batch_size=16, shuffle=True)
+        batch_size=args.batch_size, shuffle=True)
 
     # Fixed images for Tensorboard
     fixed_images, _ = next(iter(test_loader))
@@ -125,6 +137,14 @@ def main(args):
 
     model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k).to(args.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    summary_hidden = model.init_hidden(args.batch_size, args.k).to(args.device)
+    
+    # Print torch model summary for compile check.
+    # torchinfo.summary(model, 
+    #     input_data={'hidden': summary_hidden,
+    #                 'x': fixed_images},
+    #     device=args.device)
+    # return 0
 
     # Generate the samples first once
     reconstruction = generate_samples(fixed_images, model, args)
@@ -133,6 +153,7 @@ def main(args):
 
     best_loss = -1.
     for epoch in range(args.num_epochs):
+        logger.info('Epoch: {0}/{1}'.format(epoch, args.num_epochs))
         train(train_loader, model, optimizer, args, writer)
         loss, _ = test(valid_loader, model, args, writer)
 
@@ -151,6 +172,8 @@ if __name__ == '__main__':
     import argparse
     import os
     import multiprocessing as mp
+
+    logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser(description='VQ-VAE')
 
@@ -192,8 +215,10 @@ if __name__ == '__main__':
     if not os.path.exists('./models'):
         os.makedirs('./models')
     # Device
-    args.device = torch.device(args.device
-        if torch.cuda.is_available() else 'cpu')
+    if torch.cuda.is_available():
+        args.device = torch.device(args.device)
+    else:
+        args.device = 'cpu'
     # Slurm
     if 'SLURM_JOB_ID' in os.environ:
         args.output_folder += '-{0}'.format(os.environ['SLURM_JOB_ID'])

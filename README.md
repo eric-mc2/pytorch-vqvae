@@ -1,5 +1,8 @@
 ## Extending VQ-VAE with Mutual Information
 
+CPC Loss follows: https://github.com/jefflai108/Contrastive-Predictive-Coding-PyTorch
+
+
 ### Installation
 ``` 
 conda install Pillow torch torchvision numpy tensorboardX

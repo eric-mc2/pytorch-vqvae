@@ -3,8 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions.normal import Normal
 from torch.distributions import kl_divergence
+import math
+import logging
 
 from functions import vq, vq_st
+
+logger = logging.getLogger('modules')
 
 def to_scalar(arr):
     if type(arr) == list:
@@ -12,15 +16,16 @@ def to_scalar(arr):
     else:
         return arr.item()
 
-
 def weights_init(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
-        try:
-            nn.init.xavier_uniform_(m.weight.data)
-            m.bias.data.fill_(0)
-        except AttributeError:
-            print("Skipping initialization of ", classname)
+    with torch.no_grad():
+        classname = m.__class__.__name__
+        if classname.find('Conv') != -1:
+            try:
+                nn.init.xavier_uniform_(m.weight.data)
+                m.bias.data.fill_(0)
+            except AttributeError:
+                print("Skipping initialization of ", classname)
+    
 
 
 class VAE(nn.Module):
@@ -108,8 +113,21 @@ class ResBlock(nn.Module):
 
 
 class VectorQuantizedVAE(nn.Module):
-    def __init__(self, input_dim, dim, K=512):
+    def __init__(self, input_dim, dim, K=512, K_h=128, img_window=28*28, future_window=4*4):
         super().__init__()
+
+        self.img_window_lin = img_window
+        self.downsampling_factor = 16 # == x.shape / encoder(x).shape
+        self.img_window_lin_down = self.img_window_lin // self.downsampling_factor
+        self.future_window_lin = future_window
+        self.future_window = math.ceil(math.sqrt(self.future_window_lin))
+        self.max_sample_lin = self.img_window_lin_down - self.future_window_lin
+
+        if self.max_sample_lin <= 0:
+            logger.warning("Max prediction index <= 0!")
+            self.max_sample_lin = 1
+        self.max_sample = math.ceil(math.sqrt(self.max_sample_lin))
+        
         self.encoder = nn.Sequential(
             nn.Conv2d(input_dim, dim, 4, 2, 1),
             nn.BatchNorm2d(dim),
@@ -120,6 +138,13 @@ class VectorQuantizedVAE(nn.Module):
         )
 
         self.codebook = VQEmbedding(K, dim)
+
+        # mi/cpc modules
+        print(f"DEBUG: GRU shape: 'input_features':{K}, 'hidden_features':{K_h}")
+        self.gru = nn.GRU(K//2, K_h, num_layers=1, bidirectional=False, batch_first=True)
+        self.Wk  = nn.ModuleList([nn.Linear(K_h, K//2) for i in range(self.future_window_lin)])
+        self.softmax  = nn.Softmax()
+        self.lsoftmax = nn.LogSoftmax()
 
         self.decoder = nn.Sequential(
             ResBlock(dim),
@@ -132,7 +157,18 @@ class VectorQuantizedVAE(nn.Module):
             nn.Tanh()
         )
 
+        # init weights
         self.apply(weights_init)
+        # Initialization from jefflai108. Takes 4m ...
+        # for m in self.Wk:
+        #     nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        # for layer_p in self.gru._all_weights:
+        #     for p in layer_p:
+        #         if 'weight' in p:
+        #             nn.init.kaiming_normal_(self.gru.__getattr__(p), mode='fan_out', nonlinearity='relu')
+    
+    def init_hidden(self, batch_size, K):
+        return torch.zeros(1, batch_size, K//4)
 
     def encode(self, x):
         z_e_x = self.encoder(x)
@@ -144,11 +180,68 @@ class VectorQuantizedVAE(nn.Module):
         x_tilde = self.decoder(z_q_x)
         return x_tilde
 
-    def forward(self, x):
-        z_e_x = self.encoder(x)
-        z_q_x_st, z_q_x = self.codebook.straight_through(z_e_x)
-        x_tilde = self.decoder(z_q_x_st)
-        return x_tilde, z_e_x, z_q_x
+    def forward(self, x, hidden):
+        print(f"DEBUG: x shape {x.shape}")
+        z_e_x = self.encoder(x) # B x K x D X D
+        batch_size = x.shape[0]
+        K = z_e_x.shape[1] 
+        K_h = hidden.shape[-1]
+        im_size_h = z_e_x.shape[2]
+        im_size_w = z_e_x.shape[3]
+        print(f"DEBUG: z_e_x shape {z_e_x.shape}")
+        z_q_x_st, z_q_x = self.codebook.straight_through(z_e_x) # B x K x D x D
+        print(f"DEBUG: z_q_x shape {z_q_x.shape}")
+        t_samples = torch.randint(self.max_sample_lin, size=(2,)).long() # randomly pick patches
+        print(f"DEBUG: max samples: {self.max_sample_lin}")
+        print(f"DEBUG: future window: {self.future_window}")
+        # permute z for gru
+        # new z_q_x_.shape == B x D x D x K
+        z_q_x_st_, z_q_x_ = z_q_x_st.permute((0,2,3,1)), z_q_x.permute((0,2,3,1))
+        print(f"DEBUG: z_q_x_ shape {z_q_x_.shape}")
+        nce = 0 # average over patches and batch
+        # Encoded samples are for negative discriminator. Drawn from future.
+        # encoded_samples.shape == F x B x K
+        encoded_samples = torch.empty((self.future_window_lin, batch_size, K)).float()
+        print(f"DEBUG: encoded_samples shape {encoded_samples.shape}")
+        for i in torch.arange(0, self.future_window_lin):
+            row = (t_samples[0]+i)//im_size_w
+            col = (t_samples[1]+i)%im_size_w
+            encoded_sample = z_q_x_st_[:, row, col, :]
+            encoded_samples[i-1] = encoded_sample.view(batch_size, K)
+        
+        # Forward seq is input to GRU. Drawn from past.
+        # forward_seq.shape == B x D*D x K
+        forward_seq = z_q_x_st_[:, :t_samples[0], :t_samples[1], :]
+        forward_seq_lin = forward_seq.reshape((forward_seq.shape[0],
+                                            forward_seq.shape[1]*forward_seq.shape[2],
+                                            forward_seq.shape[3]))
+        print(f"DEBUG: forward_seq shape {forward_seq_lin.shape}")
+        print(f"DEBUG: hidden shape {hidden.shape}")
+        # output.shape == B x D*D x H
+        # hidden.shape == 1 x B x H
+        output, hidden = self.gru(forward_seq_lin, hidden)
+        print(f"DEBUG: output shape {output.shape}")
+        print(f"DEBUG: hiddenoutput shape {hidden.shape}")
+        # c_t_.shape == B x H
+        c_t_ = output[:, t_samples[0] // im_size_w + t_samples[1] % im_size_w, :] 
+        print(f"DEBUG: c_t_ shape {c_t_.shape}")
+        # c_t.shape == B x H
+        c_t = c_t_.view(batch_size, K_h)
+        print(f"DEBUG: c_t shape {c_t.shape}")
+        pred = torch.empty((self.future_window_lin, batch_size, K)).float()
+        for i in torch.arange(0, self.future_window_lin):
+            linear = self.Wk[i]
+            pred[i] = linear(c_t)
+        for i in torch.arange(0, self.future_window_lin):
+            total = torch.mm(encoded_samples[i], torch.transpose(pred[i], 0, 1))
+            correct = torch.sum(torch.eq(torch.argmax(self.softmax(total), dim=0), torch.arange(0, batch_size))) # correct is a tensor
+            nce += torch.sum(torch.diag(self.lsoftmax(total))) # nce is a tensor
+        nce /= -1. * batch_size * self.future_window_lin
+        accuracy = 1.*correct.item()/batch_size
+        # x_tilde = self.decoder(z_q_x_st)
+        # return x_tilde, z_e_x, z_q_x
+        # accuracy, nce, hidden, z_e_x, z_q_x = None, None, None, None, None
+        return accuracy, nce, hidden, z_e_x, z_q_x
 
 
 class GatedActivation(nn.Module):
