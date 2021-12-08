@@ -191,7 +191,7 @@ class VectorQuantizedVAE(nn.Module):
         #print(f"DEBUG: z_e_x shape {z_e_x.shape}")
         z_q_x_st, z_q_x = self.codebook.straight_through(z_e_x) # B x K x D x D
         #print(f"DEBUG: z_q_x shape {z_q_x.shape}")
-        t_samples = torch.randint(self.max_sample_lin, size=(2,)).long() # randomly pick patches
+        p_sample = torch.randint(self.max_sample_lin, size=(1,)).long() # randomly pick patches
         #print(f"DEBUG: max samples: {self.max_sample_lin}")
         #print(f"DEBUG: future window: {self.future_window}")
         # permute z for gru
@@ -204,14 +204,14 @@ class VectorQuantizedVAE(nn.Module):
         encoded_samples = torch.empty((self.future_window_lin, batch_size, K)).float()
         #print(f"DEBUG: encoded_samples shape {encoded_samples.shape}")
         for i in torch.arange(0, self.future_window_lin):
-            row = torch.div(t_samples[0]+i, im_size_w, rounding_mode='floor')
-            col = (t_samples[1]+i)%im_size_w
+            row = torch.div(p_sample+i, im_size_w, rounding_mode='floor')
+            col = (p_sample+i)%im_size_w
             encoded_sample = z_q_x_st_[:, row, col, :]
             encoded_samples[i-1] = encoded_sample.view(batch_size, K)
         
         # Forward seq is input to GRU. Drawn from past.
         # forward_seq.shape == B x D*D x K
-        forward_seq = z_q_x_st_[:, :t_samples[0], :t_samples[1], :]
+        forward_seq = z_q_x_st_[:, :p_sample, :p_sample, :]
         forward_seq_lin = forward_seq.reshape((forward_seq.shape[0],
                                             forward_seq.shape[1]*forward_seq.shape[2],
                                             forward_seq.shape[3]))
@@ -224,12 +224,10 @@ class VectorQuantizedVAE(nn.Module):
         elif hidden.shape[0] == 0:
             logger.error(f"Hidden RNN has 0 length: {hidden.shape}")
         output, hidden = self.gru(forward_seq_lin, hidden)
-        #print(f"DEBUG: output shape {output.shape}")
+        print(f"DEBUG: output shape {output.shape}")
         #print(f"DEBUG: hiddenoutput shape {hidden.shape}")
         # c_t_.shape == B x H
-        row = torch.div(t_samples[0], im_size_w, rounding_mode='floor')
-        col = t_samples[1] % im_size_w
-        c_t_ = output[:, row * im_size_w + col, :] 
+        c_t_ = output[:, p_sample, :] 
         #print(f"DEBUG: c_t_ shape {c_t_.shape}")
         # c_t.shape == B x H
         c_t = c_t_.view(batch_size, K_h)
