@@ -43,7 +43,8 @@ def train(data_loader, model, optimizer, args, writer):
 
 def test(data_loader, model, args, writer):
     with torch.no_grad():
-        loss_recons, loss_vq, loss_nce = 0., 0., 0.
+        # loss_recons, loss_vq = 0., 0.
+        loss_nce, loss_vq = 0., 0.
         for images, _ in data_loader:
             images = images.to(args.device)
             hidden = model.init_hidden(len(images), args.k).to(args.device)
@@ -62,7 +63,7 @@ def test(data_loader, model, args, writer):
     writer.add_scalar('loss/test/nce', loss_nce.item(), args.steps)
     writer.add_scalar('loss/test/quantization', loss_vq.item(), args.steps)
 
-    return loss_recons.item(), loss_vq.item()
+    return loss_nce.item(), loss_vq.item()
 
 def generate_samples(images, model, args):
     with torch.no_grad():
