@@ -232,7 +232,7 @@ class VectorQuantizedVAE(nn.Module):
         # c_t.shape == B x H
         c_t = c_t_.view(batch_size, K_h)
         logger.debug(f" c_t shape {c_t.shape}")
-        logger.debug(f" Wk0 shape {self.Wk[0].shape}")
+        logger.debug(f" Wk0 shape {self.Wk[0]}")
         pred = torch.empty((self.future_window_lin, batch_size, K)).float()
         for i in torch.arange(0, self.future_window_lin):
             linear = self.Wk[i]
