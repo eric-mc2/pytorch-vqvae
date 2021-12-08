@@ -24,7 +24,7 @@ def train(data_loader, model, optimizer, args, writer):
         loss_recons = F.mse_loss(x_tilde, images)
         # Vector quantization & commitment objective
         svd = cross_cov_svd(z_e_x, z_q_x)
-        loss_eig = -torch.sum(torch.var(svd)) + torch.sum(torch.abs(svd))
+        loss_eig = -torch.sum(torch.var(svd)) + torch.square(torch.sum(torch.abs(svd)))
         # Vector quantization objective
         # loss_vq = F.mse_loss(z_q_x, z_e_x.detach())
         # Commitment objective
@@ -52,7 +52,7 @@ def test(data_loader, model, args, writer):
             # Vector quantization & commitment objective
             svd = cross_cov_svd(z_e_x, z_q_x)
             loss_eig += -torch.sum(torch.var(svd))
-            loss_eig += torch.sum(torch.abs(svd))
+            loss_eig += torch.square(torch.sum(torch.abs(svd)))
             # loss_vq += F.mse_loss(z_q_x, z_e_x)
 
         loss_recons /= len(data_loader)
