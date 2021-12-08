@@ -215,8 +215,8 @@ class VectorQuantizedVAE(nn.Module):
         forward_seq_lin = forward_seq.reshape((forward_seq.shape[0],
                                             forward_seq.shape[1]*forward_seq.shape[2],
                                             forward_seq.shape[3]))
-        #logger.debug(f" forward_seq shape {forward_seq_lin.shape}")
-        #logger.debug(f" hidden shape {hidden.shape}")
+        logger.debug(f" forward_seq shape {forward_seq_lin.shape}")
+        logger.debug(f" hidden shape {hidden.shape}")
         # output.shape == B x D*D x H
         # hidden.shape == 1 x B x H
         if forward_seq_lin.shape[0] == 0:
@@ -231,8 +231,8 @@ class VectorQuantizedVAE(nn.Module):
         #logger.debug(f" c_t_ shape {c_t_.shape}")
         # c_t.shape == B x H
         c_t = c_t_.view(batch_size, K_h)
-        logger.debug(f" c_t shape {c_t.shape}")
-        logger.debug(f" Wk0 shape {self.Wk[0]}")
+        # logger.debug(f" c_t shape {c_t.shape}")
+        # logger.debug(f" Wk0 shape {self.Wk[0]}")
         pred = torch.empty((self.future_window_lin, batch_size, K)).float()
         for i in torch.arange(0, self.future_window_lin):
             linear = self.Wk[i]
