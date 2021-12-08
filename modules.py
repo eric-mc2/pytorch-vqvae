@@ -140,7 +140,7 @@ class VectorQuantizedVAE(nn.Module):
         self.codebook = VQEmbedding(K, dim)
 
         # mi/cpc modules
-        print(f"DEBUG: GRU shape: 'input_features':{K}, 'hidden_features':{K_h}")
+        # #print(f"DEBUG: GRU shape: 'input_features':{K}, 'hidden_features':{K_h}")
         self.gru = nn.GRU(K//2, K_h, num_layers=1, bidirectional=False, batch_first=True)
         self.Wk  = nn.ModuleList([nn.Linear(K_h, K//2) for i in range(self.future_window_lin)])
         self.softmax  = nn.Softmax()
@@ -181,28 +181,28 @@ class VectorQuantizedVAE(nn.Module):
         return x_tilde
 
     def forward(self, x, hidden):
-        print(f"DEBUG: x shape {x.shape}")
+        #print(f"DEBUG: x shape {x.shape}")
         z_e_x = self.encoder(x) # B x K x D X D
         batch_size = x.shape[0]
         K = z_e_x.shape[1] 
         K_h = hidden.shape[-1]
         im_size_h = z_e_x.shape[2]
         im_size_w = z_e_x.shape[3]
-        print(f"DEBUG: z_e_x shape {z_e_x.shape}")
+        #print(f"DEBUG: z_e_x shape {z_e_x.shape}")
         z_q_x_st, z_q_x = self.codebook.straight_through(z_e_x) # B x K x D x D
-        print(f"DEBUG: z_q_x shape {z_q_x.shape}")
+        #print(f"DEBUG: z_q_x shape {z_q_x.shape}")
         t_samples = torch.randint(self.max_sample_lin, size=(2,)).long() # randomly pick patches
-        print(f"DEBUG: max samples: {self.max_sample_lin}")
-        print(f"DEBUG: future window: {self.future_window}")
+        #print(f"DEBUG: max samples: {self.max_sample_lin}")
+        #print(f"DEBUG: future window: {self.future_window}")
         # permute z for gru
         # new z_q_x_.shape == B x D x D x K
         z_q_x_st_, z_q_x_ = z_q_x_st.permute((0,2,3,1)), z_q_x.permute((0,2,3,1))
-        print(f"DEBUG: z_q_x_ shape {z_q_x_.shape}")
+        #print(f"DEBUG: z_q_x_ shape {z_q_x_.shape}")
         nce = 0 # average over patches and batch
         # Encoded samples are for negative discriminator. Drawn from future.
         # encoded_samples.shape == F x B x K
         encoded_samples = torch.empty((self.future_window_lin, batch_size, K)).float()
-        print(f"DEBUG: encoded_samples shape {encoded_samples.shape}")
+        #print(f"DEBUG: encoded_samples shape {encoded_samples.shape}")
         for i in torch.arange(0, self.future_window_lin):
             row = (t_samples[0]+i)//im_size_w
             col = (t_samples[1]+i)%im_size_w
@@ -215,19 +215,19 @@ class VectorQuantizedVAE(nn.Module):
         forward_seq_lin = forward_seq.reshape((forward_seq.shape[0],
                                             forward_seq.shape[1]*forward_seq.shape[2],
                                             forward_seq.shape[3]))
-        print(f"DEBUG: forward_seq shape {forward_seq_lin.shape}")
-        print(f"DEBUG: hidden shape {hidden.shape}")
+        #print(f"DEBUG: forward_seq shape {forward_seq_lin.shape}")
+        #print(f"DEBUG: hidden shape {hidden.shape}")
         # output.shape == B x D*D x H
         # hidden.shape == 1 x B x H
         output, hidden = self.gru(forward_seq_lin, hidden)
-        print(f"DEBUG: output shape {output.shape}")
-        print(f"DEBUG: hiddenoutput shape {hidden.shape}")
+        #print(f"DEBUG: output shape {output.shape}")
+        #print(f"DEBUG: hiddenoutput shape {hidden.shape}")
         # c_t_.shape == B x H
         c_t_ = output[:, t_samples[0] // im_size_w + t_samples[1] % im_size_w, :] 
-        print(f"DEBUG: c_t_ shape {c_t_.shape}")
+        #print(f"DEBUG: c_t_ shape {c_t_.shape}")
         # c_t.shape == B x H
         c_t = c_t_.view(batch_size, K_h)
-        print(f"DEBUG: c_t shape {c_t.shape}")
+        #print(f"DEBUG: c_t shape {c_t.shape}")
         pred = torch.empty((self.future_window_lin, batch_size, K)).float()
         for i in torch.arange(0, self.future_window_lin):
             linear = self.Wk[i]

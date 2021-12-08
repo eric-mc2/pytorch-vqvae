@@ -13,9 +13,9 @@ cd "$VQVAE_REPO"
 python vqvae.py --dataset mnist \
     --data-folder "$PROJECT_ROOT/data/mnist" \
     --output-folder models/vqvae-cpc \
-    --batch-size 4 \
-    --num-epochs 2 \
-    --device cpu
+    --batch-size 64 \
+    --num-epochs 50 \
+    --device gpu
 
 
 # --device cuda \
