@@ -1,0 +1,22 @@
+#!/bin/bash
+#
+#SBATCH --job-name=vqvae-tb
+#SBATCH --time=02:00:00
+#SBATCH --partition=general
+#
+unset XDG_RUNTIME_DIR
+NODEIP=$(hostname -i)
+NODEPORT=$(( $RANDOM + 1024))
+
+PROJECT_ROOT="/home/echandler/DeepL/final-project"
+VQVAE_DIR="$PROJECT_ROOT/mi-vqvae"
+VQVAE_REPO="$VQVAE_DIR/pytorch-vqvae"
+
+echo "ssh command: ssh -N -L 8888:$NODEIP:$NODEPORT echandler@fe.ai.cs.uchicago.edu"
+
+cd "$VQVAE_DIR"
+source "env_vqvae/bin/activate"
+
+cd "$VQVAE_REPO"
+tensorboard --logdir '.'
+

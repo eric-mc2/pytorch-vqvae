@@ -1,0 +1,39 @@
+#!/bin/sh
+
+# Train vqvae
+# USAGE:
+# sbatch cluster-train-vqvae.job
+#
+#SBATCH --job-name=vqvae
+#SBATCH --mail-user=echandler@uchicago.edu
+#SBATCH --mail-type=ALL
+#
+#SBATCH --output=/home/echandler/DeepL/final-project/mi-vqvae/output/%j.%N.stdout
+#SBATCH --error=/home/echandler/DeepL/final-project/mi-vqvae/output/%j.%N.stderr
+#
+#OPTIONS FOR JOB SIZE:
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --partition=general
+#SBATCH --gpus=1
+#NOTSBATCH --gres=gpu:rtx8000:1
+#SBATCH --mem-per-cpu=32G
+#SBATCH --time=01:00:00
+#
+
+PROJECT_ROOT="/home/echandler/DeepL/final-project"
+VQVAE_DIR="$PROJECT_ROOT/mi-vqvae"
+VQVAE_REPO="$VQVAE_DIR/pytorch-vqvae"
+
+cd "$VQVAE_DIR"
+source "env_vqvae/bin/activate"
+
+cd "$VQVAE_REPO"
+python vqvae.py --dataset mnist \
+    --data-folder "$PROJECT_ROOT/data/mnist" \
+    --run-name vqvae-cpc \
+    --model encoder \
+    --batch-size 16 \
+    --num-epochs 50 \
+    --device cuda \
+    --logger-lvl INFO
