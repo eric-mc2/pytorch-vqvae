@@ -200,7 +200,7 @@ def main(args):
 
     if args.model == 'encoder':
         model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k, 
-            img_window=num_pix, future_window=32)
+            img_window=num_pix, future_window=args.num_future)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         checkpoint_dir = encoder_checkpoint_dir
     else:
@@ -210,7 +210,7 @@ def main(args):
 
         best_checkpoint = torch.load(f'{encoder_checkpoint_dir}/best.pt')
         best_encoder = VectorQuantizedVAE(num_channels, args.hidden_size, args.k, 
-            img_window=num_pix, future_window=32).to(args.device)
+            img_window=num_pix, future_window=args.num_future).to(args.device)
         best_encoder.load_state_dict(best_checkpoint['model_state_dict'])
 
         model = VectorQuantizedVAEDecoder(num_channels, args.hidden_size, best_encoder.codebook)
@@ -306,6 +306,8 @@ if __name__ == '__main__':
         help='size of the latent vectors (default: 256)')
     parser.add_argument('--k', type=int, default=512,
         help='number of latent vectors (default: 512)')
+    parser.add_argument('--num-future', type=int, default=4*4,
+        help='number of latent patches to predict (default: 16)')
 
     # Optimization
     parser.add_argument('--batch-size', type=int, default=128,
