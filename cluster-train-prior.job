@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Train vqvae
+# USAGE:
+# sbatch cluster-train-vqvae.job
+#
+#SBATCH --job-name=vqvae
+#SBATCH --mail-user=echandler@uchicago.edu
+#SBATCH --mail-type=ALL
+#
+#SBATCH --output=/home/echandler/DeepL/final-project/mi-vqvae/output/%j.%N.stdout
+#SBATCH --error=/home/echandler/DeepL/final-project/mi-vqvae/output/%j.%N.stderr
+#
+#OPTIONS FOR JOB SIZE:
+#SBATCH --partition=general
+#SBATCH --nodes=1
+# NOTE: always set ntasks==gpus or else it doesnt allocate right?
+#SBATCH --ntasks=1
+#SBATCH --gpus=1
+#SBATCH --gpus-per-task=1
+#NOTSBATCH --gres=gpu:rtx8000:1
+#SBATCH --mem-per-cpu=32G
+#SBATCH --time=01:00:00
+#
+
+PROJECT_ROOT="/home/echandler/DeepL/final-project"
+VQVAE_DIR="$PROJECT_ROOT/mi-vqvae"
+VQVAE_REPO="$VQVAE_DIR/pytorch-vqvae"
+CELEBA_DIR="/net/scratch/echandler/datasets/img_align_celeba"
+MNIST_DIR="$PROJECT_ROOT/data/mnist"
+
+# Best encoder
+MODEL_FILE="$VQVAE_REPO/models/celeba-b256-f32-opt-encoder/best.pt"
+
+#. /home/echandler/.bashrc
+#conda activate vqvae
+echo "Env sanity check: python exe: `which python`"
+echo "Env sanity check: hostname: `hostname`"
+echo "Env sanity check: cuda devices: $CUDA_VISIBLE_DEVICES"
+
+cd "$VQVAE_REPO"
+
+python pixelcnn_prior.py \
+    --data-folder "$CELEBA_DIR" \
+    --dataset celeba \
+    --model-file "$MODEL_FILE" \
+    --run-name tmp-prior \
+    --batch-size 256 \
+    --num-epochs 2 \
+    --num-workers 2 \
+    --num-future 32 \
+    --device cuda \
+    --logger-lvl INFO

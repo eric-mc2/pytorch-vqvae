@@ -75,6 +75,10 @@ def main(args):
     save_filename = './models/{0}-prior.pt'.format(args.run_name)
     checkpoint_dir = './models/{0}-prior'.format(args.run_name)
 
+    if not os.path.exists(args.model_file):
+        parser.print_help()
+        return 1
+
     logging.basicConfig(level=getattr(logging, args.logger_lvl.upper()))
     logger.info(f'Running on device: {args.device}')
     if args.device == 'cuda':
@@ -93,11 +97,11 @@ def main(args):
         batch_size=16, shuffle=True)
 
     # Save the label encoder
-    with open('./models/{0}/labels.json'.format(args.run_name), 'w') as f:
+    with open('./models/{0}-prior/labels.json'.format(args.run_name), 'w') as f:
         json.dump(train_dataset._label_encoder, f)
 
     # Fixed images for Tensorboard
-    fixed_images, _ = next(iter(test_loader))
+    fixed_images, *_ = next(iter(test_loader))
     fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('original', fixed_grid, 0)
 
@@ -162,8 +166,10 @@ if __name__ == '__main__':
         help='name of the data folder')
     parser.add_argument('--dataset', type=str,
         help='name of the dataset (mnist, fashion-mnist, cifar10, miniimagenet)')
-    parser.add_argument('--model-file', type=str,
+    parser.add_argument('--model-file', type=str, required=True,
         help='filename containing the model')
+    parser.add_argument('--run-name', type=str, default='prior',
+        help='name of the output folder (default: prior)')
 
     # Latent space
     parser.add_argument('--hidden-size-vae', type=int, default=256,
@@ -174,6 +180,8 @@ if __name__ == '__main__':
         help='number of latent vectors (default: 512)')
     parser.add_argument('--num-layers', type=int, default=15,
         help='number of layers for the PixelCNN prior (default: 15)')
+    parser.add_argument('--num-future', type=int, default=4*4,
+        help='number of latent patches to predict (default: 16)')
 
     # Optimization
     parser.add_argument('--batch-size', type=int, default=128,
@@ -184,8 +192,6 @@ if __name__ == '__main__':
         help='learning rate for Adam optimizer (default: 3e-4)')
 
     # Miscellaneous
-    parser.add_argument('--run-name', type=str, default='prior',
-        help='name of the output folder (default: prior)')
     parser.add_argument('--num-workers', type=int, default=mp.cpu_count() - 1,
         help='number of workers for trajectories sampling (default: {0})'.format(mp.cpu_count() - 1))
     parser.add_argument('--device', type=str, default='cpu',

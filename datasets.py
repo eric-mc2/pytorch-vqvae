@@ -121,7 +121,7 @@ class CelebA(data.Dataset):
     def __getitem__(self, index):
         filename, label = self._data[index]
         image = pil_loader(os.path.join(self.image_folder, filename))
-        label = self._label_encoder[label]
+        label = self._label_encoder[labels]
         if self.transform is not None:
             image = self.transform(image)
         if self.target_transform is not None:
