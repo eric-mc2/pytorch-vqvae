@@ -2,13 +2,17 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import json
-from torchvision import transforms
+import re
+import logging
 from torchvision.utils import save_image, make_grid
 
 from modules import VectorQuantizedVAE, GatedPixelCNN
-from datasets import MiniImagenet
+from datasets import download_datasets
 
 from tensorboardX import SummaryWriter
+
+logger = logging.getLogger('pixelcnn-prior')
+
 
 def train(data_loader, model, prior, optimizer, args, writer):
     for images, labels in data_loader:
@@ -54,50 +58,16 @@ def test(data_loader, model, prior, args, writer):
     return loss.item()
 
 def main(args):
-    writer = SummaryWriter('./logs/{0}'.format(args.output_folder))
-    save_filename = './models/{0}/prior.pt'.format(args.output_folder)
+    writer = SummaryWriter('./logs/{0}'.format(args.run_name))
+    save_filename = './models/{0}-prior.pt'.format(args.run_name)
+    checkpoint_dir = './models/{0}-prior'.format(args.run_name)
 
-    if args.dataset in ['mnist', 'fashion-mnist', 'cifar10']:
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        ])
-        if args.dataset == 'mnist':
-            # Define the train & test datasets
-            train_dataset = datasets.MNIST(args.data_folder, train=True,
-                download=True, transform=transform)
-            test_dataset = datasets.MNIST(args.data_folder, train=False,
-                transform=transform)
-            num_channels = 1
-        elif args.dataset == 'fashion-mnist':
-            # Define the train & test datasets
-            train_dataset = datasets.FashionMNIST(args.data_folder,
-                train=True, download=True, transform=transform)
-            test_dataset = datasets.FashionMNIST(args.data_folder,
-                train=False, transform=transform)
-            num_channels = 1
-        elif args.dataset == 'cifar10':
-            # Define the train & test datasets
-            train_dataset = datasets.CIFAR10(args.data_folder,
-                train=True, download=True, transform=transform)
-            test_dataset = datasets.CIFAR10(args.data_folder,
-                train=False, transform=transform)
-            num_channels = 3
-        valid_dataset = test_dataset
-    elif args.dataset == 'miniimagenet':
-        transform = transforms.Compose([
-            transforms.RandomResizedCrop(128),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        ])
-        # Define the train, valid & test datasets
-        train_dataset = MiniImagenet(args.data_folder, train=True,
-            download=True, transform=transform)
-        valid_dataset = MiniImagenet(args.data_folder, valid=True,
-            download=True, transform=transform)
-        test_dataset = MiniImagenet(args.data_folder, test=True,
-            download=True, transform=transform)
-        num_channels = 3
+    logging.basicConfig(level=getattr(logging, args.logger_lvl.upper()))
+    logger.info(f'Running on device: {args.device}')
+    if args.device == 'cuda':
+        logger.info(f'CUDA device count {torch.cuda.device_count()}')
+
+    train_dataset, valid_dataset, test_dataset, num_channels, num_pix = download_datasets(args)    
 
     # Define the data loaders
     train_loader = torch.utils.data.DataLoader(train_dataset,
@@ -110,7 +80,7 @@ def main(args):
         batch_size=16, shuffle=True)
 
     # Save the label encoder
-    with open('./models/{0}/labels.json'.format(args.output_folder), 'w') as f:
+    with open('./models/{0}/labels.json'.format(args.run_name), 'w') as f:
         json.dump(train_dataset._label_encoder, f)
 
     # Fixed images for Tensorboard
@@ -118,18 +88,33 @@ def main(args):
     fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('original', fixed_grid, 0)
 
-    model = VectorQuantizedVAE(num_channels, args.hidden_size_vae, args.k).to(args.device)
-    with open(args.model, 'rb') as f:
+    model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k,
+            img_window=num_pix, future_window=args.num_future).to(args.device)
+    with open(args.model_file, 'rb') as f:
         state_dict = torch.load(f)
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict['model_state_dict'])
     model.eval()
 
     prior = GatedPixelCNN(args.k, args.hidden_size_prior,
-        args.num_layers, n_classes=len(train_dataset._label_encoder)).to(args.device)
+        args.num_layers, n_classes=len(train_dataset._label_encoder))
     optimizer = torch.optim.Adam(prior.parameters(), lr=args.lr)
 
-    best_loss = -1.
-    for epoch in range(args.num_epochs):
+    checkpoint_re = re.compile(f'model_([0-9]+)')
+    checkpoint_files = [os.path.basename(f) for f in os.listdir(checkpoint_dir)]
+    checkpoint_matches = [checkpoint_re.search(f) for f in checkpoint_files]
+    checkpoint_epochs = [int(m.group(1)) for m in checkpoint_matches if m]
+    if checkpoint_epochs:
+        last_saved_epoch = max(checkpoint_epochs)
+        last_checkpoint = torch.load(f'{checkpoint_dir}/model_{last_saved_epoch}.pt')
+        prior.load_state_dict(last_checkpoint['model_state_dict'])
+        optimizer.load_state_dict(last_checkpoint['optimizer_state_dict'])
+        start_epoch = last_checkpoint['epoch']
+    else:
+        start_epoch = 0
+
+    best_loss = np.Inf
+    for epoch in range(start_epoch, args.num_epochs):
+        logger.info('Epoch: {0}/{1}'.format(epoch, args.num_epochs))
         train(train_loader, model, prior, optimizer, args, writer)
         # The validation loss is not properly computed since
         # the classes in the train and valid splits of Mini-Imagenet
@@ -138,8 +123,12 @@ def main(args):
 
         if (epoch == 0) or (loss < best_loss):
             best_loss = loss
-            with open(save_filename, 'wb') as f:
-                torch.save(prior.state_dict(), f)
+            with open(f'{checkpoint_dir}/best.pt', 'wb') as f:
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': prior.state_dict(),
+                    'loss': loss,
+                }, f)
 
 if __name__ == '__main__':
     import argparse
@@ -153,7 +142,7 @@ if __name__ == '__main__':
         help='name of the data folder')
     parser.add_argument('--dataset', type=str,
         help='name of the dataset (mnist, fashion-mnist, cifar10, miniimagenet)')
-    parser.add_argument('--model', type=str,
+    parser.add_argument('--model-file', type=str,
         help='filename containing the model')
 
     # Latent space
@@ -175,28 +164,32 @@ if __name__ == '__main__':
         help='learning rate for Adam optimizer (default: 3e-4)')
 
     # Miscellaneous
-    parser.add_argument('--output-folder', type=str, default='prior',
+    parser.add_argument('--run-name', type=str, default='prior',
         help='name of the output folder (default: prior)')
     parser.add_argument('--num-workers', type=int, default=mp.cpu_count() - 1,
         help='number of workers for trajectories sampling (default: {0})'.format(mp.cpu_count() - 1))
     parser.add_argument('--device', type=str, default='cpu',
         help='set the device (cpu or cuda, default: cpu)')
+    parser.add_argument('--logger-lvl', type=str, default='WARNING',
+        choices=["DEBUG","INFO","WARNING","ERROR","CRITICAL"],
+        help='set the printf verbosity')
 
     args = parser.parse_args()
+
+    # Device
+    if torch.cuda.is_available():
+        args.device = torch.device(args.device)
+    else:
+        args.device = 'cpu'
 
     # Create logs and models folder if they don't exist
     if not os.path.exists('./logs'):
         os.makedirs('./logs')
     if not os.path.exists('./models'):
         os.makedirs('./models')
-    # Device
-    args.device = torch.device(args.device
-        if torch.cuda.is_available() else 'cpu')
-    # Slurm
-    if 'SLURM_JOB_ID' in os.environ:
-        args.output_folder += '-{0}'.format(os.environ['SLURM_JOB_ID'])
-    if not os.path.exists('./models/{0}'.format(args.output_folder)):
-        os.makedirs('./models/{0}'.format(args.output_folder))
+    if not os.path.exists('./models/{0}-prior'.format(args.run_name)):
+        os.makedirs('./models/{0}-prior'.format(args.run_name))
+    
     args.steps = 0
 
     main(args)

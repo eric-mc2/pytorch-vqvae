@@ -4,78 +4,15 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torchvision import transforms, datasets
 from torchvision.utils import save_image, make_grid
 import torchinfo
 
 from modules import VectorQuantizedVAE, VectorQuantizedVAEDecoder
-from datasets import MiniImagenet, CelebA
+from datasets import download_datasets
 
 from tensorboardX import SummaryWriter
 
 logger = logging.getLogger('vqvae')
-
-def download_datasets(args):
-    if args.dataset in ['mnist', 'fashion-mnist']:
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.5), (0.5))
-        ])
-        if args.dataset == 'mnist':
-            # Define the train & test datasets
-            train_dataset = datasets.MNIST(args.data_folder, train=True,
-                download=True, transform=transform)
-            test_dataset = datasets.MNIST(args.data_folder, train=False,
-                transform=transform)
-            num_channels = 1
-            num_pix = 28*28
-        elif args.dataset == 'fashion-mnist':
-            # Define the train & test datasets
-            train_dataset = datasets.FashionMNIST(args.data_folder,
-                train=True, download=True, transform=transform)
-            test_dataset = datasets.FashionMNIST(args.data_folder,
-                train=False, transform=transform)
-            num_channels = 1
-        valid_dataset = test_dataset
-    elif args.dataset == 'cifar10':
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        ])
-        # Define the train & test datasets
-        train_dataset = datasets.CIFAR10(args.data_folder,
-            train=True, download=True, transform=transform)
-        test_dataset = datasets.CIFAR10(args.data_folder,
-            train=False, transform=transform)
-        num_channels = 3
-        valid_dataset = test_dataset
-    elif args.dataset == 'miniimagenet':
-        transform = transforms.Compose([
-            transforms.RandomResizedCrop(128),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        ])
-        # Define the train, valid & test datasets
-        train_dataset = MiniImagenet(args.data_folder, train=True,
-            download=True, transform=transform)
-        valid_dataset = MiniImagenet(args.data_folder, valid=True,
-            download=True, transform=transform)
-        test_dataset = MiniImagenet(args.data_folder, test=True,
-            download=True, transform=transform)
-        num_channels = 3
-    elif args.dataset == 'celeba':
-        transform = transforms.Compose([
-            transforms.CenterCrop(160), 
-            transforms.Resize(64), 
-            transforms.ToTensor(),
-        ])
-        train_dataset = CelebA(args.data_folder, train=True, transform=transform)
-        valid_dataset = CelebA(args.data_folder, valid=True, transform=transform)
-        test_dataset = CelebA(args.data_folder, test=True, transform=transform)
-        num_channels = 3
-        num_pix = 64*64
-
-    return train_dataset, valid_dataset, test_dataset, num_channels, num_pix
 
 
 def train_encoder(data_loader, model, optimizer, args, writer):
@@ -200,7 +137,7 @@ def main(args):
 
     if args.model == 'encoder':
         model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k, 
-            img_window=num_pix, future_window=32)
+            img_window=num_pix, future_window=args.num_future)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         checkpoint_dir = encoder_checkpoint_dir
     else:
@@ -209,8 +146,8 @@ def main(args):
         checkpoint_dir = decoder_checkpoint_dir
 
         best_checkpoint = torch.load(f'{encoder_checkpoint_dir}/best.pt')
-        best_encoder = VectorQuantizedVAE(num_channels, args.hidden_size, args.k, 
-            img_window=num_pix, future_window=32).to(args.device)
+        best_encoder = VectorQuantizedVAE(num_channels, args.hidden_size, args.k,
+            img_window=num_pix, future_window=args.num_future).to(args.device)
         best_encoder.load_state_dict(best_checkpoint['model_state_dict'])
 
         model = VectorQuantizedVAEDecoder(num_channels, args.hidden_size, best_encoder.codebook)

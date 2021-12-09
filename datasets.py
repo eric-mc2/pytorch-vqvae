@@ -2,6 +2,8 @@ import os
 import csv
 import torch.utils.data as data
 from PIL import Image
+from torchvision import transforms, datasets
+
 
 def pil_loader(path):
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
@@ -9,6 +11,68 @@ def pil_loader(path):
     with open(path, 'rb') as f:
         img = Image.open(f)
         return img.convert('RGB')
+
+def download_datasets(args):
+    if args.dataset in ['mnist', 'fashion-mnist']:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5), (0.5))
+        ])
+        if args.dataset == 'mnist':
+            # Define the train & test datasets
+            train_dataset = datasets.MNIST(args.data_folder, train=True,
+                download=True, transform=transform)
+            test_dataset = datasets.MNIST(args.data_folder, train=False,
+                transform=transform)
+            num_channels = 1
+            num_pix = 28*28
+        elif args.dataset == 'fashion-mnist':
+            # Define the train & test datasets
+            train_dataset = datasets.FashionMNIST(args.data_folder,
+                train=True, download=True, transform=transform)
+            test_dataset = datasets.FashionMNIST(args.data_folder,
+                train=False, transform=transform)
+            num_channels = 1
+        valid_dataset = test_dataset
+    elif args.dataset == 'cifar10':
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+        # Define the train & test datasets
+        train_dataset = datasets.CIFAR10(args.data_folder,
+            train=True, download=True, transform=transform)
+        test_dataset = datasets.CIFAR10(args.data_folder,
+            train=False, transform=transform)
+        num_channels = 3
+        valid_dataset = test_dataset
+    elif args.dataset == 'miniimagenet':
+        transform = transforms.Compose([
+            transforms.RandomResizedCrop(128),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+        # Define the train, valid & test datasets
+        train_dataset = MiniImagenet(args.data_folder, train=True,
+            download=True, transform=transform)
+        valid_dataset = MiniImagenet(args.data_folder, valid=True,
+            download=True, transform=transform)
+        test_dataset = MiniImagenet(args.data_folder, test=True,
+            download=True, transform=transform)
+        num_channels = 3
+    elif args.dataset == 'celeba':
+        transform = transforms.Compose([
+            transforms.CenterCrop(160), 
+            transforms.Resize(64), 
+            transforms.ToTensor(),
+        ])
+        train_dataset = CelebA(args.data_folder, train=True, transform=transform)
+        valid_dataset = CelebA(args.data_folder, valid=True, transform=transform)
+        test_dataset = CelebA(args.data_folder, test=True, transform=transform)
+        num_channels = 3
+        num_pix = 64*64
+
+    return train_dataset, valid_dataset, test_dataset, num_channels, num_pix
 
 class CelebA(data.Dataset):
     # dset = datasets.ImageFolder(args.data_folder, transform=transform)
