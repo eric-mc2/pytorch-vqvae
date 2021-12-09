@@ -366,6 +366,25 @@ class GatedPixelCNN(nn.Module):
 
         return self.output_conv(x_h)
 
+    def sample(self, count, channels=3, shape=(8,8), label=None, device='cuda'):
+        # from https://github.com/anordertoreclaim/PixelCNN/
+        
+        height, width = shape
+
+        samples = torch.zeros(count, channels, height, width).to(device)
+        labels = (label*torch.ones(count)).to(device).long()
+
+        with torch.no_grad():
+            for i in range(height):
+                for j in range(width):
+                    for c in range(channels):
+                        unnormalized_probs = self.forward(samples, labels)
+                        pixel_probs = F.softmax(unnormalized_probs[:, :, c, i, j], dim=1)
+                        sampled_levels = torch.multinomial(pixel_probs, 1).squeeze().float() / (self.k - 1)
+                        samples[:, c, i, j] = sampled_levels
+
+        return samples
+
     def generate(self, labels, shape=(8, 8), batch_size=64, device='cpu'):
         x = torch.zeros((batch_size, *shape), dtype=torch.int64).to(device)
         labels = labels.to(device)

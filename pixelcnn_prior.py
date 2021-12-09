@@ -57,23 +57,9 @@ def test(data_loader, model, prior, args, writer):
 
     return loss.item()
 
-def generate_samples(labels, prior, im_shape, args):
-    with torch.no_grad():
-        #N_SAMPLES = 10
-        #N_LABELS = 2 # {-1, 1}
-        #label = torch.tensor([-1,1]).expand(N_SAMPLES,N_LABELS).contiguous().view(-1)
-        #label = label.long().cuda()
-
-        # TODO: IMAGE_SHAPE
-        x = torch.zeros((args.batch_size, *shape), dtype=torch.int64).to(args.device)
-        labels = labels.to(device)
-        x_tilde = prior(x, labels)
-        #x_tilde = prior.generate(labels, shape=im_shape, 
-        #    batch_size=args.batch_size, device=args.device)
-        images = x_tilde.cpu().data.float() / (args.k - 1)
-
-    return images
-
+def generate_samples(label, count, prior, num_channels, im_shape, args):
+    return prior.sample(count, channels=num_channels, 
+        shape=im_shape, label=label, device=args.device).cpu()
 
 def main(args):
     writer = SummaryWriter('./logs/{0}'.format(args.run_name))
@@ -106,7 +92,7 @@ def main(args):
         json.dump(train_dataset._label_encoder, f)
 
     # Fixed images for Tensorboard
-    fixed_images, fixed_labels = next(iter(test_loader))
+    fixed_images, _ = next(iter(test_loader))
     fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('original', fixed_grid, 0)
 
@@ -138,8 +124,9 @@ def main(args):
 
     prior.to(args.device)
 
-    generated = generate_samples(fixed_labels, prior, im_shape, args)
-    grid = make_grid(generated.cpu(), nrow=8, range=(-1, 1), normalize=True)
+    gen_pos = generate_samples(1, 8, prior, num_channels, im_shape, args)
+    gen_neg = generate_samples(-1, 8, prior, num_channels, im_shape, args)
+    grid = make_grid(torch.cat([gen_pos, gen_neg]), nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('generated', grid, 0)
 
     best_loss = np.Inf
@@ -150,8 +137,9 @@ def main(args):
         # the classes in the train and valid splits of Mini-Imagenet
         # do not overlap.
         loss = test(valid_loader, model, prior, args, writer)
-        generated = generate_samples(fixed_labels, prior, im_shape, args)
-        grid = make_grid(generated.cpu(), nrow=8, range=(-1, 1), normalize=True)
+        gen_pos = generate_samples(1, 8, prior, num_channels, im_shape, args)
+        gen_neg = generate_samples(-1, 8, prior, num_channels, im_shape, args)
+        grid = make_grid(torch.cat([gen_pos, gen_neg]), nrow=8, range=(-1, 1), normalize=True)
         writer.add_image('generated', grid, epoch + 1)
 
         if (epoch == 0) or (loss < best_loss):
