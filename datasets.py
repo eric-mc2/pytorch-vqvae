@@ -10,6 +10,70 @@ def pil_loader(path):
         img = Image.open(f)
         return img.convert('RGB')
 
+class CelebA(data.Dataset):
+    # dset = datasets.ImageFolder(args.data_folder, transform=transform)
+
+    def __init__(self, root, train=False, valid=False, test=False,
+                 transform=None, target_transform=None):
+        super().__init__()
+        self.root = root
+        self.train = train
+        self.valid = valid
+        self.test = test
+        self.transform = transform
+        self.target_transform = target_transform
+
+        if not (((train ^ valid ^ test) ^ (train & valid & test))):
+            raise ValueError('One and only one of `train`, `valid` or `test` '
+                'must be True (train={0}, valid={1}, test={2}).'.format(train,
+                valid, test))
+
+        self.image_folder = os.path.join(os.path.expanduser(root), 'img_align_celeba')
+        if train:
+            split = self.splits['train']
+        elif valid:
+            split = self.splits['valid']
+        elif test:
+            split = self.splits['test']
+        else:
+            raise ValueError('Unknown split.')
+        self.split_filename = os.path.join(os.path.expanduser(root), split)
+        
+        
+        # Extract filenames and labels
+        self._data = []
+        with open(self.split_filename, 'r') as f:
+            reader = csv.reader(f)
+            next(reader) # Skip the header
+            for line in reader:
+                self._data.append(tuple(line))
+        self._fit_label_encoding()
+
+    def __getitem__(self, index):
+        filename, label = self._data[index]
+        image = pil_loader(os.path.join(self.image_folder, filename))
+        label = self._label_encoder[label]
+        if self.transform is not None:
+            image = self.transform(image)
+        if self.target_transform is not None:
+            label = self.target_transform(label)
+
+        return image, label
+
+    def _fit_label_encoding(self):
+        _, labels = zip(*self._data)
+        unique_labels = set(labels)
+        self._label_encoder = dict((label, idx)
+            for (idx, label) in enumerate(unique_labels))
+
+    def _check_exists(self):
+        return (os.path.exists(self.image_folder) 
+            and os.path.exists(self.split_filename))
+
+    def __len__(self):
+        return len(self._data)
+
+
 class MiniImagenet(data.Dataset):
 
     base_folder = '/data/lisa/data/miniimagenet'

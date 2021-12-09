@@ -5,11 +5,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torchvision import transforms, datasets
+import tensorflow_datasets as tfds
 from torchvision.utils import save_image, make_grid
 import torchinfo
 
 from modules import VectorQuantizedVAE, VectorQuantizedVAEDecoder
-from datasets import MiniImagenet
+from datasets import MiniImagenet, CelebA
 
 from tensorboardX import SummaryWriter
 
@@ -62,7 +63,27 @@ def download_datasets(args):
         test_dataset = MiniImagenet(args.data_folder, test=True,
             download=True, transform=transform)
         num_channels = 3
-    
+    elif args.dataset == 'celeba':
+        transform = transforms.Compose([
+            transforms.CenterCrop(160), 
+            transforms.Resize(64), 
+            transforms.ToTensor(),
+        ])
+        train_dataset = tfds.load('celeb-a', split='train', 
+            data_dir=args.data_folder, batch_size=args.batch_size, 
+            shuffle_files=False, download=False, with_info=True)
+        valid_dataset = tfds.load('celeb-a', split='valid', 
+            data_dir=args.data_folder, batch_size=args.batch_size, 
+            shuffle_files=False, download=False, with_info=True)
+        test_dataset = tfds.load('celeb-a', split='test', 
+            data_dir=args.data_folder, batch_size=args.batch_size, 
+            shuffle_files=False, download=False, with_info=True)
+
+        # train_dataset = CelebA(args.data_folder, train=True, transform=transform)
+        # valid_dataset = CelebA(args.data_folder, valid=True, transform=transform)
+        # test_dataset = CelebA(args.data_folder, test=True, transform=transform)
+        num_channels = 3
+
     return train_dataset, valid_dataset, test_dataset, num_channels
 
 
