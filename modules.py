@@ -111,6 +111,28 @@ class ResBlock(nn.Module):
     def forward(self, x):
         return x + self.block(x)
 
+class VectorQuantizedVAEDecoder(nn.Module):
+    def __init__(self, input_dim, dim, codebook):
+        super().__init__()
+
+        self.codebook = codebook.copy()
+        
+        self.decoder = nn.Sequential(
+            ResBlock(dim),
+            ResBlock(dim),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(dim, dim, 4, 2, 1),
+            nn.BatchNorm2d(dim),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(dim, input_dim, 4, 2, 1),
+            nn.Tanh()
+        )
+        self.apply(weights_init)
+
+    def forward(self, z_q_x):
+        x_tilde = self.decoder(z_q_x)
+        return x_tilde
+
 
 class VectorQuantizedVAE(nn.Module):
     def __init__(self, input_dim, dim, K=512, K_h=128, img_window=28*28, future_window=4*4):
@@ -146,39 +168,24 @@ class VectorQuantizedVAE(nn.Module):
         self.softmax  = nn.Softmax(dim=1)
         self.lsoftmax = nn.LogSoftmax(dim=1)
 
-        self.decoder = nn.Sequential(
-            ResBlock(dim),
-            ResBlock(dim),
-            nn.ReLU(True),
-            nn.ConvTranspose2d(dim, dim, 4, 2, 1),
-            nn.BatchNorm2d(dim),
-            nn.ReLU(True),
-            nn.ConvTranspose2d(dim, input_dim, 4, 2, 1),
-            nn.Tanh()
-        )
-
         # init weights
         self.apply(weights_init)
         # Initialization from jefflai108. Takes 4m ...
-        # for m in self.Wk:
-        #     nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-        # for layer_p in self.gru._all_weights:
-        #     for p in layer_p:
-        #         if 'weight' in p:
-        #             nn.init.kaiming_normal_(self.gru.__getattr__(p), mode='fan_out', nonlinearity='relu')
+        for m in self.Wk:
+            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        for layer_p in self.gru._all_weights:
+            for p in layer_p:
+                if 'weight' in p:
+                    nn.init.kaiming_normal_(self.gru.__getattr__(p), mode='fan_out', nonlinearity='relu')
     
     def init_hidden(self, batch_size, K):
         return torch.zeros(1, batch_size, K//4)
 
     def encode(self, x):
+        # THIS IS PROBABLY WRONG BECAUSE DOESN"T USE CPC RNN
         z_e_x = self.encoder(x)
         latents = self.codebook(z_e_x)
         return latents
-
-    def decode(self, latents):
-        z_q_x = self.codebook.embedding(latents).permute(0, 3, 1, 2)  # (B, D, H, W)
-        x_tilde = self.decoder(z_q_x)
-        return x_tilde
 
     def forward(self, x, hidden):
         logger.debug(f" x shape {x.shape}")
@@ -243,10 +250,7 @@ class VectorQuantizedVAE(nn.Module):
             nce = nce + torch.sum(torch.diag(self.lsoftmax(total))) # nce is a tensor
         nce = -1. * nce / (batch_size * self.future_window_lin)
         accuracy = 1.*correct/batch_size
-        # x_tilde = self.decoder(z_q_x_st)
-        # return x_tilde, z_e_x, z_q_x
-        # accuracy, nce, hidden, z_e_x, z_q_x = None, None, None, None, None
-        return accuracy, nce, hidden, z_e_x, z_q_x
+        return accuracy, nce, z_e_x, z_q_x
 
 
 class GatedActivation(nn.Module):
