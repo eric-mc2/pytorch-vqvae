@@ -28,6 +28,7 @@ def download_datasets(args):
             test_dataset = datasets.MNIST(args.data_folder, train=False,
                 transform=transform)
             num_channels = 1
+            num_pix = 28*28
         elif args.dataset == 'fashion-mnist':
             # Define the train & test datasets
             train_dataset = datasets.FashionMNIST(args.data_folder,
@@ -68,18 +69,13 @@ def download_datasets(args):
             transforms.Resize(64), 
             transforms.ToTensor(),
         ])
-        # train_dataset = datasets.CelebA(args.data_folder, split='train',
-        #     transform=transform, download=True)
-        # valid_dataset = datasets.CelebA(args.data_folder, split='valid',
-        #     transform=transform, download=True)
-        # test_dataset = datasets.CelebA(args.data_folder, split='test',
-        #     transform=transform, download=True)
         train_dataset = CelebA(args.data_folder, train=True, transform=transform)
         valid_dataset = CelebA(args.data_folder, valid=True, transform=transform)
         test_dataset = CelebA(args.data_folder, test=True, transform=transform)
         num_channels = 3
+        num_pix = 64*64
 
-    return train_dataset, valid_dataset, test_dataset, num_channels
+    return train_dataset, valid_dataset, test_dataset, num_channels, num_pix
 
 
 def train_encoder(data_loader, model, optimizer, args, writer):
@@ -187,7 +183,7 @@ def main(args):
     if args.device == 'cuda':
         logger.info(f'CUDA device count {torch.cuda.device_count()}')
 
-    train_dataset, valid_dataset, test_dataset, num_channels = download_datasets(args)
+    train_dataset, valid_dataset, test_dataset, num_channels, num_pix = download_datasets(args)
 
     # Define the data loaders
     train_loader = torch.utils.data.DataLoader(train_dataset,
@@ -203,7 +199,8 @@ def main(args):
     fixed_images, _ = next(iter(test_loader))
 
     if args.model == 'encoder':
-        model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k)
+        model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k, 
+            img_window=num_pix, future_window=32)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         checkpoint_dir = encoder_checkpoint_dir
     else:
@@ -212,7 +209,8 @@ def main(args):
         checkpoint_dir = decoder_checkpoint_dir
 
         best_checkpoint = torch.load(f'{encoder_checkpoint_dir}/best.pt')
-        best_encoder = VectorQuantizedVAE(num_channels, args.hidden_size, args.k).to(args.device)
+        best_encoder = VectorQuantizedVAE(num_channels, args.hidden_size, args.k, 
+            img_window=num_pix, future_window=32).to(args.device)
         best_encoder.load_state_dict(best_checkpoint['model_state_dict'])
 
         model = VectorQuantizedVAEDecoder(num_channels, args.hidden_size, best_encoder.codebook)

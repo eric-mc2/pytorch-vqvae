@@ -19,7 +19,7 @@ VQVAE_REPO="$VQVAE_DIR/pytorch-vqvae"
 echo "ssh command: ssh -N -L 8888:$NODEIP:$NODEPORT echandler@fe.ai.cs.uchicago.edu"
 
 cd "$VQVAE_REPO"
-conda activate vqvae
+#conda activate vqvae
 #jupyter-notebook --ip=$NODEIP --port=$NODEPORT --no-browser
 tensorboard --logdir 'logs' --port=$NODEPORT --host=$NODEIP
 
