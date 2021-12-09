@@ -7,7 +7,7 @@ from torchvision.utils import save_image, make_grid
 import torchinfo
 import logging
 import os
-improt re
+import re
 
 from modules import VectorQuantizedVAE, to_scalar
 from datasets import MiniImagenet
