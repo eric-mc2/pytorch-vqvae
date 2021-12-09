@@ -119,8 +119,8 @@ def train_decoder(data_loader, encoder, decoder, optimizer, args, writer):
         optimizer.zero_grad()
         with torch.no_grad():
             hidden = encoder.init_hidden(len(images), args.k).to(args.device)
-            latents = encoder(images, hidden)
-        x_tilde = decoder(latents)
+            _, _, _, z_q_x = encoder(images, hidden)
+        x_tilde = decoder(z_q_x)
 
         # Reconstruction loss
         loss_recons = F.mse_loss(x_tilde, images)
@@ -186,7 +186,6 @@ def main(args):
     if args.model == 'encoder':
         model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-        train, test = train_encoder, test_encoder
         checkpoint_dir = encoder_checkpoint_dir
     else:
         fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
@@ -197,9 +196,8 @@ def main(args):
         best_encoder = VectorQuantizedVAE(num_channels, args.hidden_size, args.k)
         best_encoder.load_state_dict(best_checkpoint['model_state_dict'])
 
-        model = VectorQuantizedVAEDecoder(num_channels, args.hidden_size, args.k, best_encoder.codebook)
+        model = VectorQuantizedVAEDecoder(num_channels, args.hidden_size, best_encoder.codebook)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-        train, test = train_decoder, test_decoder
     
     checkpoint_re = re.compile(f'model_([0-9]+)')
     checkpoint_files = [os.path.basename(f) for f in os.listdir(checkpoint_dir)]
@@ -233,18 +231,21 @@ def main(args):
 
     # Generate the samples first once
     if args.model == 'decoder':
-        reconstruction = generate_samples(fixed_images, model, args)
+        reconstruction = generate_samples(fixed_images, best_encoder, model, args)
         grid = make_grid(reconstruction.cpu(), nrow=8, range=(-1, 1), normalize=True)
         writer.add_image('reconstruction', grid, 0)
 
     best_loss = np.Inf
     for epoch in range(start_epoch, args.num_epochs):
         logger.info('Epoch: {0}/{1}'.format(epoch, args.num_epochs))
-        train(train_loader, model, optimizer, args, writer)
-        loss, _ = test(valid_loader, model, args, writer)
-
-        if args.model == 'decoder':
-            reconstruction = generate_samples(fixed_images, model, args)
+        
+        if args.model == 'encoder':
+            train_encoder(train_loader, model, optimizer, args, writer)
+            loss, _ = test_encoder(valid_loader, model, args, writer)
+        else:
+            train_decoder(train_loader, best_encoder, model, optimizer, args, writer)
+            loss = test_decoder(valid_loader, best_encoder, model, args, writer)
+            reconstruction = generate_samples(fixed_images, best_encoder, model, args)
             grid = make_grid(reconstruction.cpu(), nrow=8, range=(-1, 1), normalize=True)
             writer.add_image('reconstruction', grid, epoch + 1)
 

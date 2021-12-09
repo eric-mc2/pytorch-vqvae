@@ -115,7 +115,7 @@ class VectorQuantizedVAEDecoder(nn.Module):
     def __init__(self, input_dim, dim, codebook):
         super().__init__()
 
-        self.codebook = codebook.copy()
+        self.codebook = codebook.requires_grad_(False)
         
         self.decoder = nn.Sequential(
             ResBlock(dim),

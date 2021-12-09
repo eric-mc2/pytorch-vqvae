@@ -13,7 +13,7 @@ cd "$VQVAE_REPO"
 python vqvae.py --dataset mnist \
     --data-folder "$PROJECT_ROOT/data/mnist" \
     --run-name vqvae-cpc \
-    --model encoder \
+    --model decoder \
     --batch-size 16 \
     --num-epochs 2 \
     --device cuda \
