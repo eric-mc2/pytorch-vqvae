@@ -65,8 +65,11 @@ def generate_samples(labels, prior, im_shape, args):
         #label = label.long().cuda()
 
         # TODO: IMAGE_SHAPE
-        x_tilde = prior.generate(labels, shape=im_shape, 
-            batch_size=args.batch_size, device=args.device)
+        x = torch.zeros((args.batch_size, *shape), dtype=torch.int64).to(args.device)
+        labels = labels.to(device)
+        x_tilde = prior(x, labels)
+        #x_tilde = prior.generate(labels, shape=im_shape, 
+        #    batch_size=args.batch_size, device=args.device)
         images = x_tilde.cpu().data.float() / (args.k - 1)
 
     return images

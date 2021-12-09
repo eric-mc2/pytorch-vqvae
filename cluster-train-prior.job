@@ -45,7 +45,7 @@ python pixelcnn_prior.py \
     --dataset celeba \
     --model-file "$MODEL_FILE" \
     --run-name tmp-prior \
-    --batch-size 256 \
+    --batch-size 4 \
     --num-epochs 2 \
     --num-workers 2 \
     --num-future 32 \

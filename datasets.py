@@ -3,6 +3,9 @@ import csv
 import torch.utils.data as data
 from PIL import Image
 from torchvision import transforms, datasets
+import logging
+
+logger = logging.getLogger('dataset')
 
 
 def pil_loader(path):
@@ -120,8 +123,10 @@ class CelebA(data.Dataset):
 
     def __getitem__(self, index):
         filename, label = self._data[index]
+        logger.debug(f"Reading label from data: {label}")
         image = pil_loader(os.path.join(self.image_folder, filename))
         label = self._label_encoder[label]
+        logger.debug(f"Retrieving encoded label: {label}")
         if self.transform is not None:
             image = self.transform(image)
         if self.target_transform is not None:
