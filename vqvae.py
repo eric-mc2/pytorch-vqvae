@@ -5,7 +5,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torchvision import transforms, datasets
-import tensorflow_datasets as tfds
 from torchvision.utils import save_image, make_grid
 import torchinfo
 
@@ -69,16 +68,12 @@ def download_datasets(args):
             transforms.Resize(64), 
             transforms.ToTensor(),
         ])
-        train_dataset = tfds.load('celeb-a', split='train', 
-            data_dir=args.data_folder, batch_size=args.batch_size, 
-            shuffle_files=False, download=False, with_info=True)
-        valid_dataset = tfds.load('celeb-a', split='valid', 
-            data_dir=args.data_folder, batch_size=args.batch_size, 
-            shuffle_files=False, download=False, with_info=True)
-        test_dataset = tfds.load('celeb-a', split='test', 
-            data_dir=args.data_folder, batch_size=args.batch_size, 
-            shuffle_files=False, download=False, with_info=True)
-
+        train_dataset = datasets.CelebA(args.data_folder, split='train',
+            transform=transform, download=True)
+        valid_dataset = datasets.CelebA(args.data_folder, split='valid',
+            transform=transform, download=True)
+        test_dataset = datasets.CelebA(args.data_folder, split='test',
+            transform=transform, download=True)
         # train_dataset = CelebA(args.data_folder, train=True, transform=transform)
         # valid_dataset = CelebA(args.data_folder, valid=True, transform=transform)
         # test_dataset = CelebA(args.data_folder, test=True, transform=transform)

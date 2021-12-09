@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Train vqvae
 # USAGE:
@@ -24,17 +24,21 @@
 PROJECT_ROOT="/home/echandler/DeepL/final-project"
 VQVAE_DIR="$PROJECT_ROOT/mi-vqvae"
 VQVAE_REPO="$VQVAE_DIR/pytorch-vqvae"
+CELEBA_DIR="/net/scratch/echandler/datasets/img_align_celeba"
+#CELEBA_DIR="/net/scratch/echandler/datasets/celeba"
+MNIST_DIR="$PROJECT_ROOT/data/mnist"
 
 . /home/echandler/.bashrc
 conda activate vqvae
+which python
 
 cd "$VQVAE_REPO"
-python vqvae.py --dataset mnist \
-    --data-folder "$PROJECT_ROOT/data/mnist" \
-    --run-name vqvae-cpc \
-    --model decoder \
-    --batch-size 16 \
-    --num-epochs 50 \
+python vqvae.py --dataset celeba \
+    --data-folder "$CELEBA_DIR" \
+    --run-name tmp \
+    --model encoder \
+    --batch-size 128 \
+    --num-epochs 2 \
     --num-workers 2 \
     --device cuda \
-    --logger-lvl INFO
+    --logger-lvl DEBUG
