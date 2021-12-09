@@ -1,3 +1,4 @@
+import re
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -6,6 +7,7 @@ from torchvision.utils import save_image, make_grid
 import torchinfo
 import logging
 import os
+improt re
 
 from modules import VectorQuantizedVAE, to_scalar
 from datasets import MiniImagenet
@@ -139,11 +141,25 @@ def main(args):
     fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('original', fixed_grid, 0)
 
-    # if '{0}/model_
-
-    model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k).to(args.device)
+    model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     
+    checkpoint_files = [os.path.basename(f) for f in os.listdir(save_filename)]
+    checkpoint_matchces = [re.search(r'model_[0-9]+', f) for f in checkpoint_files]
+    checkpoint_epochs = [int(m.group(0)) for m in checkpoint_matchces if m]
+    if checkpoint_epochs:
+        last_saved_epoch = max(checkpoint_epochs)
+        last_checkpoint = torch.load('{0}/model_{1}.pt'.format(save_filename, last_saved_epoch))
+        model.load_state_dict(last_checkpoint['model_state_dict'])
+        optimizer.load_state_dict(last_checkpoint['optimizer_state_dict'])
+        start_epoch = last_checkpoint['epoch']
+        # loss = last_checkpoint['loss']
+    else:
+        start_epoch = 0
+
+    # Send model to device after maybe loading it from checkpoint
+    model.to(args.device)
+
     # Print torch model summary for compile check.
     # summary_hidden = model.init_hidden(args.batch_size, args.k).to(args.device)
     # torchinfo.summary(model, 
@@ -157,8 +173,8 @@ def main(args):
     grid = make_grid(reconstruction.cpu(), nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('reconstruction', grid, 0)
 
-    best_loss = -1.
-    for epoch in range(args.num_epochs):
+    best_loss = np.Inf
+    for epoch in range(start_epoch, args.num_epochs):
         logger.info('Epoch: {0}/{1}'.format(epoch, args.num_epochs))
         train(train_loader, model, optimizer, args, writer)
         loss, _ = test(valid_loader, model, args, writer)
@@ -172,7 +188,12 @@ def main(args):
             with open('{0}/best.pt'.format(save_filename), 'wb') as f:
                 torch.save(model.state_dict(), f)
         with open('{0}/model_{1}.pt'.format(save_filename, epoch + 1), 'wb') as f:
-            torch.save(model.state_dict(), f)
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss,
+            }, f)
 
 if __name__ == '__main__':
     import argparse
