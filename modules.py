@@ -301,9 +301,13 @@ class GatedMaskedConv2d(nn.Module):
         if self.mask_type == 'A':
             self.make_causal()
 
+        logger.debug(f"h shape:: {h.shape}")
         h = self.class_cond_embedding(h)
+        logger.debug(f"h_e shape: {h.shape}")
         h_vert = self.vert_stack(x_v)
+        logger.debug(f"h_vert shape 1: {h_vert.shape}")
         h_vert = h_vert[:, :, :x_v.size(-1), :]
+        logger.debug(f"h_vert shape 2: {h_vert.shape}")
         out_v = self.gate(h_vert + h[:, :, None, None])
 
         h_horiz = self.horiz_stack(x_h)
@@ -356,21 +360,21 @@ class GatedPixelCNN(nn.Module):
         x = x.permute(0, 3, 1, 2)  # (B, C, W, W)
 
         x_v, x_h = (x, x)
+        logger.debug(f"x_v, x_h shape: {x_v.shape}")
         for i, layer in enumerate(self.layers):
             x_v, x_h = layer(x_v, x_h, label)
 
         return self.output_conv(x_h)
 
-    def generate(self, label, shape=(8, 8), batch_size=64):
-        param = next(self.parameters())
-        x = torch.zeros(
-            (batch_size, *shape),
-            dtype=torch.int64, device=param.device
-        )
+    def generate(self, labels, shape=(8, 8), batch_size=64, device='cpu'):
+        x = torch.zeros((batch_size, *shape), dtype=torch.int64).to(device)
+        labels = labels.to(device)
 
+        logger.debug(f"x shape: {x.shape}")
+        logger.debug(f"labels shape: {labels.shape}")
         for i in range(shape[0]):
             for j in range(shape[1]):
-                logits = self.forward(x, label)
+                logits = self.forward(x, labels)
                 probs = F.softmax(logits[:, :, i, j], -1)
                 x.data[:, i, j].copy_(
                     probs.multinomial(1).squeeze().data

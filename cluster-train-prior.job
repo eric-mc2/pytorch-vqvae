@@ -50,4 +50,4 @@ python pixelcnn_prior.py \
     --num-workers 2 \
     --num-future 32 \
     --device cuda \
-    --logger-lvl INFO
+    --logger-lvl DEBUG

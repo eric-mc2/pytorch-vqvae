@@ -57,14 +57,16 @@ def test(data_loader, model, prior, args, writer):
 
     return loss.item()
 
-def generate_samples(images, prior, args):
+def generate_samples(labels, prior, im_shape, args):
     with torch.no_grad():
-        N_LABELS = 40
-        label = torch.arange(N_LABELS).expand(N_LABELS, N_LABELS).contiguous().view(-1)
-        label = label.long().cuda()
+        #N_SAMPLES = 10
+        #N_LABELS = 2 # {-1, 1}
+        #label = torch.tensor([-1,1]).expand(N_SAMPLES,N_LABELS).contiguous().view(-1)
+        #label = label.long().cuda()
 
         # TODO: IMAGE_SHAPE
-        x_tilde = prior.generate(label, shape=(64, 64), batch_size=args.batch_size)
+        x_tilde = prior.generate(labels, shape=im_shape, 
+            batch_size=args.batch_size, device=args.device)
         images = x_tilde.cpu().data.float() / (args.k - 1)
 
     return images
@@ -84,7 +86,7 @@ def main(args):
     if args.device == 'cuda':
         logger.info(f'CUDA device count {torch.cuda.device_count()}')
 
-    train_dataset, valid_dataset, test_dataset, num_channels, num_pix = download_datasets(args)    
+    train_dataset, valid_dataset, test_dataset, num_channels, im_shape = download_datasets(args)    
 
     # Define the data loaders
     train_loader = torch.utils.data.DataLoader(train_dataset,
@@ -101,19 +103,21 @@ def main(args):
         json.dump(train_dataset._label_encoder, f)
 
     # Fixed images for Tensorboard
-    fixed_images, *_ = next(iter(test_loader))
+    fixed_images, fixed_labels = next(iter(test_loader))
     fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('original', fixed_grid, 0)
 
-    model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k,
-            img_window=num_pix, future_window=args.num_future).to(args.device)
+    model = VectorQuantizedVAE(num_channels, args.hidden_size_vae, args.k,
+            img_window=im_shape[0]*im_shape[1], future_window=args.num_future).to(args.device)
     with open(args.model_file, 'rb') as f:
         state_dict = torch.load(f)
         model.load_state_dict(state_dict['model_state_dict'])
     model.eval()
 
-    prior = GatedPixelCNN(args.k, args.hidden_size_prior,
-        args.num_layers, n_classes=len(train_dataset._label_encoder))
+    n_classes = len(train_dataset._label_encoder)
+    logger.debug(f"Making prior with {n_classes} classes")
+    prior = GatedPixelCNN(args.hidden_size_vae, args.hidden_size_prior,
+        args.num_layers, n_classes=n_classes)
     optimizer = torch.optim.Adam(prior.parameters(), lr=args.lr)
 
     checkpoint_re = re.compile(f'model_([0-9]+)')
@@ -129,7 +133,9 @@ def main(args):
     else:
         start_epoch = 0
 
-    generated = generate_samples(fixed_images, model, prior, args)
+    prior.to(args.device)
+
+    generated = generate_samples(fixed_labels, prior, im_shape, args)
     grid = make_grid(generated.cpu(), nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('generated', grid, 0)
 
@@ -141,7 +147,7 @@ def main(args):
         # the classes in the train and valid splits of Mini-Imagenet
         # do not overlap.
         loss = test(valid_loader, model, prior, args, writer)
-        generated = generate_samples(fixed_images, model, prior, args)
+        generated = generate_samples(fixed_labels, prior, im_shape, args)
         grid = make_grid(generated.cpu(), nrow=8, range=(-1, 1), normalize=True)
         writer.add_image('generated', grid, epoch + 1)
 

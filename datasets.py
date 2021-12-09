@@ -25,7 +25,7 @@ def download_datasets(args):
             test_dataset = datasets.MNIST(args.data_folder, train=False,
                 transform=transform)
             num_channels = 1
-            num_pix = 28*28
+            im_shape = (28,28)
         elif args.dataset == 'fashion-mnist':
             # Define the train & test datasets
             train_dataset = datasets.FashionMNIST(args.data_folder,
@@ -70,9 +70,9 @@ def download_datasets(args):
         valid_dataset = CelebA(args.data_folder, valid=True, transform=transform)
         test_dataset = CelebA(args.data_folder, test=True, transform=transform)
         num_channels = 3
-        num_pix = 64*64
+        im_shape = (64,64)
 
-    return train_dataset, valid_dataset, test_dataset, num_channels, num_pix
+    return train_dataset, valid_dataset, test_dataset, num_channels, im_shape
 
 class CelebA(data.Dataset):
     # dset = datasets.ImageFolder(args.data_folder, transform=transform)
@@ -121,7 +121,7 @@ class CelebA(data.Dataset):
     def __getitem__(self, index):
         filename, label = self._data[index]
         image = pil_loader(os.path.join(self.image_folder, filename))
-        label = self._label_encoder[labels]
+        label = self._label_encoder[label]
         if self.transform is not None:
             image = self.transform(image)
         if self.target_transform is not None:
