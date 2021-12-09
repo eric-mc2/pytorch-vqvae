@@ -162,8 +162,9 @@ def generate_samples(images, encoder, decoder, args):
 
 
 def main(args):
-    writer = SummaryWriter('./logs/{0}'.format(args.output_folder))
-    save_filename = './models/{0}'.format(args.output_folder)
+    writer = SummaryWriter('./logs/{0}'.format(args.run_name))
+    encoder_checkpoint_dir = './models/{0}-encoder'.format(args.run_name)
+    decoder_checkpoint_dir = './models/{0}-decoder'.format(args.run_name)
 
     logging.basicConfig(level=getattr(logging, args.logger_lvl.upper()))
 
@@ -186,11 +187,13 @@ def main(args):
         model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         train, test = train_encoder, test_encoder
+        checkpoint_dir = encoder_checkpoint_dir
     else:
         fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
         writer.add_image('original', fixed_grid, 0)
+        checkpoint_dir = decoder_checkpoint_dir
 
-        best_checkpoint = torch.load(f'{save_filename}/best_encoder.pt')
+        best_checkpoint = torch.load(f'{encoder_checkpoint_dir}/best.pt')
         best_encoder = VectorQuantizedVAE(num_channels, args.hidden_size, args.k)
         best_encoder.load_state_dict(best_checkpoint['model_state_dict'])
 
@@ -198,13 +201,13 @@ def main(args):
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         train, test = train_decoder, test_decoder
     
-    checkpoint_re = re.compile(f'model_{args.model}_([0-9]+)')
-    checkpoint_files = [os.path.basename(f) for f in os.listdir(save_filename)]
+    checkpoint_re = re.compile(f'model_([0-9]+)')
+    checkpoint_files = [os.path.basename(f) for f in os.listdir(checkpoint_dir)]
     checkpoint_matches = [checkpoint_re.search(f) for f in checkpoint_files]
     checkpoint_epochs = [int(m.group(1)) for m in checkpoint_matches if m]
     if checkpoint_epochs:
         last_saved_epoch = max(checkpoint_epochs)
-        last_checkpoint = torch.load(f'{save_filename}/model_{args.model}_{last_saved_epoch}.pt')
+        last_checkpoint = torch.load(f'{checkpoint_dir}/model_{last_saved_epoch}.pt')
         model.load_state_dict(last_checkpoint['model_state_dict'])
         optimizer.load_state_dict(last_checkpoint['optimizer_state_dict'])
         start_epoch = last_checkpoint['epoch']
@@ -248,17 +251,22 @@ def main(args):
         # Save best
         if (epoch == 0) or (loss < best_loss):
             best_loss = loss
-            with open(f'{save_filename}/best_{args.model}.pt', 'wb') as f:
-                torch.save(model.state_dict(), f)
+            with open(f'{checkpoint_dir}/best.pt', 'wb') as f:
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'loss': loss,
+                }, f)
         
         # Save checkpoint
-        with open(f'{save_filename}/model_{args.model}_{epoch + 1}.pt', 'wb') as f:
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss,
-            }, f)
+        if (epoch == 0) or (epoch % 5 == 0):
+            with open(f'{checkpoint_dir}/model_{epoch + 1}.pt', 'wb') as f:
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': loss,
+                }, f)
 
 if __name__ == '__main__':
     import argparse
@@ -292,7 +300,7 @@ if __name__ == '__main__':
         help='contribution of commitment loss, between 0.1 and 2.0 (default: 1.0)')
 
     # Miscellaneous
-    parser.add_argument('--output-folder', type=str, default='vqvae',
+    parser.add_argument('--run-name', type=str, default='vqvae',
         help='name of the output folder (default: vqvae)')
     parser.add_argument('--num-workers', type=int, default=mp.cpu_count() - 1,
         help='number of workers for trajectories sampling (default: {0})'.format(mp.cpu_count() - 1))
@@ -304,22 +312,24 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # Create logs, models, outputs folder if they don't exist
-    if not os.path.exists('./logs'):
-        os.makedirs('./logs')
-    if not os.path.exists('./models'):
-        os.makedirs('./models')
-    if not os.path.exists('./models/{0}'.format(args.output_folder)):
-        os.makedirs('./models/{0}'.format(args.output_folder))
-    
     # Device
     if torch.cuda.is_available():
         args.device = torch.device(args.device)
     else:
         args.device = 'cpu'
+    
     # Slurm
     if 'SLURM_JOB_ID' in os.environ:
-        args.output_folder += '-{0}'.format(os.environ['SLURM_JOB_ID'])
+        args.run_name += '-{0}'.format(os.environ['SLURM_JOB_ID'])
+    
+    # Create logs, models, outputs folder if they don't exist
+    if not os.path.exists('./logs'):
+        os.makedirs('./logs')
+    if not os.path.exists('./models'):
+        os.makedirs('./models')
+    if not os.path.exists('./models/{0}-{1}'.format(args.run_name, args.model)):
+        os.makedirs('./models/{0}-{1}'.format(args.run_name, args.model))
+    
     args.steps = 0
 
     main(args)
