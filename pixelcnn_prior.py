@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import json
 import re
 import logging
-from torchvision.utils import save_image, make_grid
+from torchvision.utils import make_grid
 
 from modules import VectorQuantizedVAE, GatedPixelCNN
 from datasets import download_datasets
@@ -56,6 +56,19 @@ def test(data_loader, model, prior, args, writer):
     writer.add_scalar('loss/valid', loss.item(), args.steps)
 
     return loss.item()
+
+def generate_samples(images, prior, args):
+    with torch.no_grad():
+        N_LABELS = 40
+        label = torch.arange(N_LABELS).expand(N_LABELS, N_LABELS).contiguous().view(-1)
+        label = label.long().cuda()
+
+        # TODO: IMAGE_SHAPE
+        x_tilde = prior.generate(label, shape=(64, 64), batch_size=args.batch_size)
+        images = x_tilde.cpu().data.float() / (args.k - 1)
+
+    return images
+
 
 def main(args):
     writer = SummaryWriter('./logs/{0}'.format(args.run_name))
@@ -112,6 +125,10 @@ def main(args):
     else:
         start_epoch = 0
 
+    generated = generate_samples(fixed_images, model, prior, args)
+    grid = make_grid(generated.cpu(), nrow=8, range=(-1, 1), normalize=True)
+    writer.add_image('generated', grid, 0)
+
     best_loss = np.Inf
     for epoch in range(start_epoch, args.num_epochs):
         logger.info('Epoch: {0}/{1}'.format(epoch, args.num_epochs))
@@ -120,6 +137,9 @@ def main(args):
         # the classes in the train and valid splits of Mini-Imagenet
         # do not overlap.
         loss = test(valid_loader, model, prior, args, writer)
+        generated = generate_samples(fixed_images, model, prior, args)
+        grid = make_grid(generated.cpu(), nrow=8, range=(-1, 1), normalize=True)
+        writer.add_image('generated', grid, epoch + 1)
 
         if (epoch == 0) or (loss < best_loss):
             best_loss = loss
