@@ -243,6 +243,8 @@ if __name__ == '__main__':
         help='size of the latent vectors (default: 256)')
     parser.add_argument('--k', type=int, default=512,
         help='number of latent vectors (default: 512)')
+    parser.add_argument('--num-future', type=int, default=4*4,
+        help='number of latent patches to predict (default: 16)')
 
     # Optimization
     parser.add_argument('--batch-size', type=int, default=128,
