@@ -145,7 +145,7 @@ def main(args):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     
     checkpoint_files = [os.path.basename(f) for f in os.listdir(save_filename)]
-    checkpoint_matchces = [re.search(r'model_[0-9]+', f) for f in checkpoint_files]
+    checkpoint_matchces = [re.search(r'model_([0-9]+)', f) for f in checkpoint_files]
     checkpoint_epochs = [int(m.group(0)) for m in checkpoint_matchces if m]
     if checkpoint_epochs:
         last_saved_epoch = max(checkpoint_epochs)
