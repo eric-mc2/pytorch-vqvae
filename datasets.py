@@ -22,7 +22,7 @@ class CelebA(data.Dataset):
         self.test = test
         self.transform = transform
         self.target_transform = target_transform
-        splits = {
+        self.splits = {
             'train': 'train.csv',
             'valid': 'val.csv',
             'test': 'test.csv'

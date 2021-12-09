@@ -183,6 +183,9 @@ def main(args):
     decoder_checkpoint_dir = './models/{0}-decoder'.format(args.run_name)
 
     logging.basicConfig(level=getattr(logging, args.logger_lvl.upper()))
+    logger.info(f'Running on device: {args.device}')
+    if args.device == 'cuda':
+        logger.info(f'CUDA device count {torch.cuda.device_count()}')
 
     train_dataset, valid_dataset, test_dataset, num_channels = download_datasets(args)
 
@@ -229,7 +232,7 @@ def main(args):
         start_epoch = 0
 
     # Send model to device after maybe loading it from checkpoint
-    model.to(args.device)
+    torch.nn.DataParallel(model).to(args.device)
 
     # Print torch model summary for compile check.
     # if args.model == 'encoder':
