@@ -27,14 +27,12 @@ VQVAE_REPO="$VQVAE_DIR/pytorch-vqvae"
 
 . /home/echandler/.bashrc
 conda activate vqvae
-hostname
-echo $CUDA_VISIBLE_DEVICES
 
 cd "$VQVAE_REPO"
 python vqvae.py --dataset mnist \
     --data-folder "$PROJECT_ROOT/data/mnist" \
     --run-name vqvae-cpc \
-    --model encoder \
+    --model decoder \
     --batch-size 16 \
     --num-epochs 50 \
     --num-workers 2 \

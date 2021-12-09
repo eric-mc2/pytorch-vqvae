@@ -193,7 +193,7 @@ def main(args):
         checkpoint_dir = decoder_checkpoint_dir
 
         best_checkpoint = torch.load(f'{encoder_checkpoint_dir}/best.pt')
-        best_encoder = VectorQuantizedVAE(num_channels, args.hidden_size, args.k)
+        best_encoder = VectorQuantizedVAE(num_channels, args.hidden_size, args.k).to(args.device)
         best_encoder.load_state_dict(best_checkpoint['model_state_dict'])
 
         model = VectorQuantizedVAEDecoder(num_channels, args.hidden_size, best_encoder.codebook)
@@ -318,10 +318,6 @@ if __name__ == '__main__':
         args.device = torch.device(args.device)
     else:
         args.device = 'cpu'
-    
-    # Slurm
-    if 'SLURM_JOB_ID' in os.environ:
-        args.run_name += '-{0}'.format(os.environ['SLURM_JOB_ID'])
     
     # Create logs, models, outputs folder if they don't exist
     if not os.path.exists('./logs'):
