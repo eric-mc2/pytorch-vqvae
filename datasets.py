@@ -22,13 +22,18 @@ class CelebA(data.Dataset):
         self.test = test
         self.transform = transform
         self.target_transform = target_transform
+        splits = {
+            'train': 'train.csv',
+            'valid': 'val.csv',
+            'test': 'test.csv'
+        }
 
         if not (((train ^ valid ^ test) ^ (train & valid & test))):
             raise ValueError('One and only one of `train`, `valid` or `test` '
                 'must be True (train={0}, valid={1}, test={2}).'.format(train,
                 valid, test))
 
-        self.image_folder = os.path.join(os.path.expanduser(root), 'img_align_celeba')
+        self.image_folder = os.path.join(os.path.expanduser(root))
         if train:
             split = self.splits['train']
         elif valid:
@@ -39,7 +44,7 @@ class CelebA(data.Dataset):
             raise ValueError('Unknown split.')
         self.split_filename = os.path.join(os.path.expanduser(root), split)
         
-        
+
         # Extract filenames and labels
         self._data = []
         with open(self.split_filename, 'r') as f:

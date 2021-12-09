@@ -68,15 +68,15 @@ def download_datasets(args):
             transforms.Resize(64), 
             transforms.ToTensor(),
         ])
-        train_dataset = datasets.CelebA(args.data_folder, split='train',
-            transform=transform, download=True)
-        valid_dataset = datasets.CelebA(args.data_folder, split='valid',
-            transform=transform, download=True)
-        test_dataset = datasets.CelebA(args.data_folder, split='test',
-            transform=transform, download=True)
-        # train_dataset = CelebA(args.data_folder, train=True, transform=transform)
-        # valid_dataset = CelebA(args.data_folder, valid=True, transform=transform)
-        # test_dataset = CelebA(args.data_folder, test=True, transform=transform)
+        # train_dataset = datasets.CelebA(args.data_folder, split='train',
+        #     transform=transform, download=True)
+        # valid_dataset = datasets.CelebA(args.data_folder, split='valid',
+        #     transform=transform, download=True)
+        # test_dataset = datasets.CelebA(args.data_folder, split='test',
+        #     transform=transform, download=True)
+        train_dataset = CelebA(args.data_folder, train=True, transform=transform)
+        valid_dataset = CelebA(args.data_folder, valid=True, transform=transform)
+        test_dataset = CelebA(args.data_folder, test=True, transform=transform)
         num_channels = 3
 
     return train_dataset, valid_dataset, test_dataset, num_channels
