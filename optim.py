@@ -13,7 +13,11 @@ class ScheduledOptim(object):
         self.delta = 1
 
     def state_dict(self):
+        # XXX: Todo: represent own state in state dict
         self.optimizer.state_dict()
+
+    def load_state_dict(self, checkpoint):
+        self.optimizer.load_state_dict(checkpoint)
 
     def step(self):
         """Step by the inner optimizer"""
