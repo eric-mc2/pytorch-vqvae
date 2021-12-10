@@ -1,0 +1,22 @@
+#!/bin/bash
+# USAGE:
+# srun --pty bash run-tensorboard.job
+#
+#SBATCH --job-name=jnotebk
+#SBATCH --time=01:00:00
+#SBATCH --mem=32G
+#SBATCH --partition=general
+#
+unset XDG_RUNTIME_DIR
+NODEIP=$(hostname -i)
+NODEPORT=$(( $RANDOM + 1024))
+
+PROJECT_ROOT="/home/echandler/DeepL/final-project"
+VQVAE_DIR="$PROJECT_ROOT/mi-vqvae"
+VQVAE_REPO="$VQVAE_DIR/pytorch-vqvae"
+
+echo "ssh command: ssh -N -L 8888:$NODEIP:$NODEPORT echandler@fe.ai.cs.uchicago.edu"
+
+cd "$VQVAE_REPO"
+jupyter-notebook --ip=$NODEIP --port=$NODEPORT --no-browser
+

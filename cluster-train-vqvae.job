@@ -36,8 +36,8 @@ echo "Sanity check cuda: $CUDA_VISIBLE_DEVICES"
 cd "$VQVAE_REPO"
 python vqvae.py --dataset celeba \
     --data-folder "$CELEBA_DIR" \
-    --run-name celeba-b256-f32 \
-    --model decoder \
+    --run-name celeba-b256-f32-opt \
+    --model encoder \
     --batch-size 256 \
     --num-epochs 50 \
     --num-workers 2 \

@@ -170,7 +170,7 @@ class VectorQuantizedVAE(nn.Module):
 
         # init weights
         self.apply(weights_init)
-        # Initialization from jefflai108. Takes 4m ...
+
         for m in self.Wk:
             nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
         for layer_p in self.gru._all_weights:
@@ -178,6 +178,7 @@ class VectorQuantizedVAE(nn.Module):
                 if 'weight' in p:
                     nn.init.kaiming_normal_(self.gru.__getattr__(p), mode='fan_out', nonlinearity='relu')
     
+
     def init_hidden(self, batch_size, K):
         return torch.zeros(1, batch_size, K//4)
 
@@ -385,7 +386,7 @@ class GatedPixelCNN(nn.Module):
 
         return samples
 
-    def generate(self, labels, shape=(8, 8), batch_size=64, device='cpu'):
+    def generate(self, labels, shape=(8, 8), batch_size=64, device='cuda'):
         x = torch.zeros((batch_size, *shape), dtype=torch.int64).to(device)
         labels = labels.to(device)
 

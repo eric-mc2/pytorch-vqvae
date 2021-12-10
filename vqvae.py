@@ -9,6 +9,7 @@ import torchinfo
 
 from modules import VectorQuantizedVAE, VectorQuantizedVAEDecoder
 from datasets import download_datasets
+from optim import ScheduledOptim
 
 from tensorboardX import SummaryWriter
 
@@ -138,7 +139,6 @@ def main(args):
     if args.model == 'encoder':
         model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k, 
             img_window=im_shape[0]*im_shape[1], future_window=args.num_future).to(args.device)
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         checkpoint_dir = encoder_checkpoint_dir
     else:
         fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
@@ -151,7 +151,12 @@ def main(args):
         best_encoder.load_state_dict(best_checkpoint['model_state_dict'])
 
         model = VectorQuantizedVAEDecoder(num_channels, args.hidden_size, best_encoder.codebook).to(args.device)
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    
+    optimizer = ScheduledOptim(
+        torch.optim.Adam(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            betas=(0.9, 0.98), eps=1e-09, weight_decay=1e-4, amsgrad=True),
+        50)
     
     checkpoint_re = re.compile(f'model_([0-9]+)')
     checkpoint_files = [os.path.basename(f) for f in os.listdir(checkpoint_dir)]
