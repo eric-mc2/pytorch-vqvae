@@ -8,19 +8,16 @@
 conda install Pillow pytorch torchvision numpy tensorboardX six
 ```
 ### Training the VQ-VAE
-1. To train on MNIST
-```
-PROJECT_ROOT=/path/to/somewhere/outside/of/repo
-RUN_NAME="something-memorable"
-python vqvae.py --dataset mnist \
-    --data-folder "$PROJECT_ROOT/data/mnist" \
-    --run-name "$RUN_NAME" \
-    --model encoder \
-    --batch-size 16 \
-    --num-epochs 50 \
-    --device cuda \
-    --logger-lvl INFO
-```
+1. Train baseline
+`sbatch cluster-train-vqvae.job`
+2. Train prior on baseline
+Edit job file with --model-file /path/to/baseline/best.pt
+`sbatch cluster-train-prior.job`
+3. Train cpc-vqvae
+`sbatch cluster-train-cpcvqvae.job`
+4. Train prior on cpc
+Edit job file with --model-file /path/to/cpc/best.pt
+`sbatch cluster-train-prior.job`
 
 ### Credits
 
