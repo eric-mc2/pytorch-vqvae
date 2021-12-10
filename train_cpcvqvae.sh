@@ -10,7 +10,7 @@ cd "$VQVAE_REPO"
 # python -m pytest . -vv
 # tensorboard --logdir logs
 
-python vqvae.py --dataset mnist \
+python train_cpcvqvae.py --dataset mnist \
     --data-folder "$PROJECT_ROOT/data/mnist" \
     --run-name vqvae-cpc \
     --model decoder \

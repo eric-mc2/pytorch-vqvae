@@ -6,12 +6,13 @@ import re
 import logging
 from torchvision.utils import make_grid
 
-from modules import VectorQuantizedVAE, GatedPixelCNN
+from modules.cpcvqvae import CPCVQVAE
+from modules.pixelcnn import GatedPixelCNN
 from datasets import download_datasets
 
 from tensorboardX import SummaryWriter
 
-logger = logging.getLogger('pixelcnn-prior')
+logger = logging.getLogger('train-prior')
 
 
 def train(data_loader, model, prior, optimizer, args, writer):
@@ -102,7 +103,7 @@ def main(args):
     fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('original', fixed_grid, 0)
 
-    model = VectorQuantizedVAE(num_channels, args.hidden_size_vae, args.k,
+    model = CPCVQVAE(num_channels, args.hidden_size_vae, args.k,
             img_window=im_shape[0]*im_shape[1], future_window=args.num_future).to(args.device)
     with open(args.model_file, 'rb') as f:
         state_dict = torch.load(f)
@@ -169,7 +170,7 @@ if __name__ == '__main__':
     import os
     import multiprocessing as mp
 
-    parser = argparse.ArgumentParser(description='PixelCNN Prior for VQ-VAE')
+    parser = argparse.ArgumentParser(description='PixelCNN Prior for CPC-VQ-VAE')
 
     # General
     parser.add_argument('--data-folder', type=str,

@@ -4,16 +4,16 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torchvision.utils import save_image, make_grid
-import torchinfo
+from torchvision.utils import make_grid
 
-from modules import VectorQuantizedVAE, VectorQuantizedVAEDecoder
+from modules.vqvae import VQVAEDecoder
+from modules.cpcvqvae import CPCVQVAE
 from datasets import download_datasets
 from optim import ScheduledOptim
 
 from tensorboardX import SummaryWriter
 
-logger = logging.getLogger('vqvae')
+logger = logging.getLogger('train-cpcvqvae')
 
 
 def train_encoder(data_loader, model, optimizer, args, writer):
@@ -59,7 +59,7 @@ def test_encoder(data_loader, model, args, writer):
     writer.add_scalar('loss/test/nce', loss_nce.item(), args.steps)
     writer.add_scalar('loss/test/quantization', loss_vq.item(), args.steps)
 
-    return loss_nce.item(), loss_vq.item()
+    return loss_nce.item(), accuracy.item()
 
 
 def train_decoder(data_loader, encoder, decoder, optimizer, args, writer):
@@ -137,7 +137,7 @@ def main(args):
     fixed_images, _ = next(iter(test_loader))
 
     if args.model == 'encoder':
-        model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k, 
+        model = CPCVQVAE(num_channels, args.hidden_size, args.k, 
             img_window=im_shape[0]*im_shape[1], future_window=args.num_future).to(args.device)
         checkpoint_dir = encoder_checkpoint_dir
     else:
@@ -146,11 +146,11 @@ def main(args):
         checkpoint_dir = decoder_checkpoint_dir
 
         best_checkpoint = torch.load(f'{encoder_checkpoint_dir}/best.pt')
-        best_encoder = VectorQuantizedVAE(num_channels, args.hidden_size, args.k,
+        best_encoder = CPCVQVAE(num_channels, args.hidden_size, args.k,
             img_window=im_shape[0]*im_shape[1], future_window=args.num_future).to(args.device)
         best_encoder.load_state_dict(best_checkpoint['model_state_dict'])
 
-        model = VectorQuantizedVAEDecoder(num_channels, args.hidden_size, best_encoder.codebook).to(args.device)
+        model = VQVAEDecoder(num_channels, args.hidden_size, best_encoder.codebook).to(args.device)
     
     optimizer = ScheduledOptim(
         torch.optim.Adam(
@@ -171,28 +171,14 @@ def main(args):
     else:
         start_epoch = 0
 
-
-    # Print torch model summary for compile check.
-    # if args.model == 'encoder':
-    #     summary_hidden = model.init_hidden(args.batch_size, args.k).to(args.device)
-    #     torchinfo.summary(model, 
-    #         input_data={'hidden': summary_hidden, 'x': fixed_images},
-    #         device=args.device
-    #     )
-    # else:
-    #     torchinfo.summary(model, 
-    #         input_data={'x': fixed_images},
-    #         device=args.device
-    #     )
-    # return 0
-
     # Generate the samples first once
     if args.model == 'decoder':
         reconstruction = generate_samples(fixed_images, best_encoder, model, args)
         grid = make_grid(reconstruction.cpu(), nrow=8, range=(-1, 1), normalize=True)
         writer.add_image('reconstruction', grid, 0)
-
+    
     best_loss = np.Inf
+    best_epoch = -1 
     for epoch in range(start_epoch, args.num_epochs):
         logger.info('Epoch: {0}/{1}'.format(epoch, args.num_epochs))
         
@@ -215,6 +201,10 @@ def main(args):
                     'model_state_dict': model.state_dict(),
                     'loss': loss,
                 }, f)
+            best_epoch = epoch + 1
+        elif epoch - best_epoch > 2:
+            optimizer.increase_delta()
+            best_epoch = epoch + 1
         
         # Save checkpoint
         if (epoch == 0) or (epoch % 5 == 0):
@@ -231,7 +221,7 @@ if __name__ == '__main__':
     import os
     import multiprocessing as mp
 
-    parser = argparse.ArgumentParser(description='VQ-VAE')
+    parser = argparse.ArgumentParser(description='CPC-VQ-VAE')
 
     # General
     parser.add_argument('--data-folder', type=str,
