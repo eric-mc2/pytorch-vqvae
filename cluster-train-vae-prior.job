@@ -42,7 +42,7 @@ python train_prior.py \
     --dataset celeba \
     --model-file "$MODEL_FILE" \
     --model vae \
-    --run-name sampler-van-m50 \
+    --run-name prior-vae-ar \
     --batch-size 64 \
     --num-epochs 50 \
     --num-workers 2 \

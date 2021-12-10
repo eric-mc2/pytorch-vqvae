@@ -7,3 +7,6 @@ job-id, run-name, model, status, reason
 652381, sampler-van-m6, vae epoch 6 prior, running, see if vanilla model can be sampled
 652378, celeba-vqvae, vanilla vqvae, running, forgot to activate env
 652386, celeba-vqvae, vanilla vqvae, error, need baseline
+652406, vae-prio, sampler-van-m50, non-ar prior, running, before i realized its not ar
+652406, prior-vae-ar, ar prior, running, need baseline samples
+652428, celeba-b256-f32-opt-sched-encoder, cpc encode,r current best

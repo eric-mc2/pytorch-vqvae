@@ -127,12 +127,34 @@ class GatedPixelCNN(nn.Module):
         """ x shape B x D x D, where D is downsampled H and W """
         logger.debug(f"x shape: {x.shape}")
         shp = x.size() + (-1, )
-
+        
         x = self.embedding(x.view(-1)).view(shp)  # (B, D, D, dim)
         logger.debug(f"x shape: {x.shape}")
         x = x.permute(0, 3, 1, 2)  # (B, dim, D, D)
 
         x_v, x_h = (x, x)   # (B, dim, D, D)
+        logger.debug(f"x_v, x_h shape: {x_v.shape}")
+        for i, layer in enumerate(self.layers):
+            x_v, x_h = layer(x_v, x_h, label)
+
+        logger.debug(f"x_h shape: {x_h.shape}")
+        output = self.output_conv(x_h)
+        logger.debug(f"output shape: {output.shape}")
+        return output
+    
+    def sideways(self, x, label):
+        """ x shape B x D x D x C, where D is downsampled H and W """
+        logger.debug(f"x shape: {x.shape}")
+        shp = x.size()
+
+        x_e = self.embedding(x.view(-1))
+        logger.debug(f"x_e shape: {x_e.shape}")
+        x = x_e.view((shp[0],shp[1],shp[2],shp[3]*x_e.shape[1]))  # (B, D, D, dim * C)
+        logger.debug(f"x shape: {x.shape}")
+        x = x.permute(0, 3, 1, 2)  # (B, C*dim, D, D)
+        logger.debug(f"x shape: {x.shape}")
+
+        x_v, x_h = (x, x)   # (B, C*dim, D, D)
         logger.debug(f"x_v, x_h shape: {x_v.shape}")
         for i, layer in enumerate(self.layers):
             x_v, x_h = layer(x_v, x_h, label)
@@ -149,16 +171,17 @@ class GatedPixelCNN(nn.Module):
         batch_size=64, 
         device='cuda'):
 
-        x = torch.zeros((batch_size, *shape), dtype=torch.int64).to(device)
-        samples = torch.zeros((batch_size, num_channels, *shape), dtype=torch.int64).to(device)
+        # x are codes?
+        x = torch.zeros((batch_size, *shape, num_channels), dtype=torch.int64).to(device)
+        # samples = torch.zeros((batch_size, num_channels, *shape), dtype=torch.int64).to(device)
         labels = labels.to(device)
 
-        logger.debug(f"generate: x shape: {samples.shape}")
+        logger.debug(f"generate: x shape: {x.shape}")
         logger.debug(f"generate: labels shape: {labels.shape}")
         for i in range(shape[0]):
             for j in range(shape[1]):
                 for c in range(num_channels):
-                    logits = self.forward(x, labels) # (B, D, D, input_dim)
+                    logits = self.sideways(x, labels) # (B, D, D, input_dim)
                     logits = logits.permute(0, 2, 3, 1).contiguous()
                     logger.debug(f"generate: logits shape: {logits.shape}")
                     probs = F.softmax(logits[:, i, j, :], -1)
@@ -167,5 +190,31 @@ class GatedPixelCNN(nn.Module):
                     sampled_levels = probs.multinomial(1).squeeze().data
                     logger.debug(f"generage: samp shape: {sampled_levels.shape}")
                      #shape [N,H,W,C]
-                    samples[:, c, i, j] = sampled_levels 
-        return samples
+                    # samples[:, c, i, j] = sampled_levels 
+                    x.data[:, c, i, j].copy_(sampled_levels)
+        return x
+
+    def generate_bw(self, 
+            labels, 
+            shape=(8, 8), 
+            batch_size=64, 
+            device='cuda'):
+
+            x = torch.zeros((batch_size, *shape), dtype=torch.int64).to(device)
+            labels = labels.to(device)
+
+            logger.debug(f"generate: x shape: {x.shape}")
+            logger.debug(f"generate: labels shape: {labels.shape}")
+            for i in range(shape[0]):
+                for j in range(shape[1]):
+                    logits = self.forward(x, labels) # (B, D, D)
+                    logits = logits.permute(0, 2, 3, 1).contiguous()
+                    logger.debug(f"generate: logits shape: {logits.shape}")
+                    probs = F.softmax(logits[:, i, j, :], -1)
+                    logger.debug(f"generate: probs shape: {probs.shape}")
+                    # shape [N,H,W,K], values [index of most likely pixel value]
+                    sampled_levels = probs.multinomial(1).squeeze().data
+                    logger.debug(f"generage: samp shape: {sampled_levels.shape}")
+                    #shape [N,H,W]
+                    x.data[:, i, j].copy_(sampled_levels)
+            return x[:, None, :, :]

@@ -51,6 +51,7 @@ def test(data_loader, model, prior, args, writer):
 
             latents = model.encode(images)
             latents = latents.detach()
+            logger.debug(f"latent shape: {latents.shape}")
             logits = prior(latents, labels)
             logits = logits.permute(0, 2, 3, 1).contiguous()
             loss += F.cross_entropy(logits.view(-1, args.k),
@@ -66,6 +67,14 @@ def generate_samples(prior, im_shape, num_channels, batch_size, K, device):
     # XXX: label must be one batch long!!!
     label = torch.tensor([0,1]).expand(32, 2).contiguous().view(-1).long()
     x_tilde = prior.generate(label, im_shape, num_channels, batch_size, device)
+    logger.debug(f"x_tilde size: {x_tilde.shape}")
+    images = x_tilde.cpu().data.float() / (K - 1)
+    return images
+
+def generate_bw_samples(prior, im_shape, batch_size, K, device):
+    # XXX: label must be one batch long!!!
+    label = torch.tensor([0,1]).expand(32, 2).contiguous().view(-1).long()
+    x_tilde = prior.generate_bw(label, im_shape, batch_size, device)
     logger.debug(f"x_tilde size: {x_tilde.shape}")
     images = x_tilde.cpu().data.float() / (K - 1)
     return images
@@ -136,11 +145,11 @@ def main(args):
 
     prior.to(args.device)
 
-    samples = generate_samples(prior, (16,16), num_channels, args.batch_size ,args.k, args.device)
-    grid = make_grid(samples, nrow=8, range=(-1, 1), normalize=True)
-    writer.add_image('generated', grid, 0)
+    # samples = generate_samples(prior, (16,16), num_channels, args.batch_size ,args.k, args.device)
+    # grid = make_grid(samples, nrow=8, range=(-1, 1), normalize=True)
+    # writer.add_image('generated', grid, 0)
 
-    samples = generate_samples(prior, (16,16), 1, args.batch_size ,args.k, args.device)
+    samples = generate_bw_samples(prior, (16,16), args.batch_size ,args.k, args.device)
     grid = make_grid(samples, nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('generated-bw', grid, 0)
 
@@ -153,11 +162,11 @@ def main(args):
         # do not overlap.
         loss = test(valid_loader, model, prior, args, writer)
         
-        samples = generate_samples(prior, (16,16), num_channels, args.batch_size ,args.k, args.device)
-        grid = make_grid(samples, nrow=8, range=(-1, 1), normalize=True)
-        writer.add_image('generated', grid, epoch + 1)
+        # samples = generate_samples(prior, (16,16), num_channels, args.batch_size ,args.k, args.device)
+        # grid = make_grid(samples, nrow=8, range=(-1, 1), normalize=True)
+        # writer.add_image('generated', grid, epoch + 1)
 
-        samples = generate_samples(prior, (16,16), 1, args.batch_size ,args.k, args.device)
+        samples = generate_bw_samples(prior, (16,16), args.batch_size ,args.k, args.device)
         grid = make_grid(samples, nrow=8, range=(-1, 1), normalize=True)
         writer.add_image('generated-bw', grid, epoch + 1)
 

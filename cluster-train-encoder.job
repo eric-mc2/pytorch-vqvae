@@ -38,7 +38,7 @@ python train_cpcvqvae.py --dataset celeba \
     --run-name celeba-b256-f32-opt-sched \
     --model encoder \
     --batch-size 256 \
-    --num-epochs 50 \
+    --num-epochs 100 \
     --num-workers 2 \
     --num-future 32 \
     --device cuda \
