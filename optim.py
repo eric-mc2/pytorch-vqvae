@@ -14,7 +14,7 @@ class ScheduledOptim(object):
 
     def state_dict(self):
         # XXX: Todo: represent own state in state dict
-        self.optimizer.state_dict()
+        return self.optimizer.state_dict()
 
     def load_state_dict(self, checkpoint):
         self.optimizer.load_state_dict(checkpoint)
