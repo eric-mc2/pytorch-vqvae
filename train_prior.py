@@ -7,6 +7,7 @@ import logging
 from torchvision.utils import make_grid
 
 from modules.cpcvqvae import CPCVQVAE
+from modules.vqvae import VQVAE
 from modules.pixelcnn import GatedPixelCNN
 from datasets import download_datasets
 
@@ -103,8 +104,12 @@ def main(args):
     fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('original', fixed_grid, 0)
 
-    model = CPCVQVAE(num_channels, args.hidden_size_vae, args.k,
+    if args.model == 'cpc':
+        model = CPCVQVAE(num_channels, args.hidden_size_vae, args.k,
             img_window=im_shape[0]*im_shape[1], future_window=args.num_future).to(args.device)
+    else:
+        model = VQVAE(num_channels, args.hidden_size_vae, args.k).to(args.device)
+
     with open(args.model_file, 'rb') as f:
         state_dict = torch.load(f)
         model.load_state_dict(state_dict['model_state_dict'])
@@ -181,6 +186,8 @@ if __name__ == '__main__':
         help='filename containing the model')
     parser.add_argument('--run-name', type=str, default='prior',
         help='name of the output folder (default: prior)')
+    parser.add_argument('--model', type=str, default='cpc', choices=['cpc','vae'],
+        help='name of the encoder to train against (default: cpc)')
 
     # Latent space
     parser.add_argument('--hidden-size-vae', type=int, default=256,

@@ -41,6 +41,7 @@ python train_prior.py \
     --data-folder "$CELEBA_DIR" \
     --dataset celeba \
     --model-file "$MODEL_FILE" \
+    --model cpc \
     --run-name sampler-cpc-m1 \
     --batch-size 64 \
     --num-epochs 50 \
