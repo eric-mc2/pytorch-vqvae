@@ -150,7 +150,7 @@ def main(args):
             img_window=im_shape[0]*im_shape[1], future_window=args.num_future).to(args.device)
         best_encoder.load_state_dict(best_checkpoint['model_state_dict'])
 
-        model = VQVAEDecoder(num_channels, args.hidden_size, best_encoder.codebook).to(args.device)
+        model = VQVAEDecoder(num_channels, args.hidden_size, best_encoder.encoder.codebook).to(args.device)
     
     optimizer = ScheduledOptim(
         torch.optim.Adam(

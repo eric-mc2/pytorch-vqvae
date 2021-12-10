@@ -1,10 +1,11 @@
 #!/bin/bash
 
-# Train vqvae
-# USAGE:
-# sbatch cluster-train-cpcvqvae.job
+# Train CNN prior over VQ-VAE embeddings
 #
-#SBATCH --job-name=cpc-decoder
+# USAGE:
+# sbatch cluster-train-vqvae.job
+#
+#SBATCH --job-name=vae-prior
 #SBATCH --mail-user=echandler@uchicago.edu
 #SBATCH --mail-type=ALL
 #
@@ -28,16 +29,20 @@ VQVAE_REPO="$VQVAE_DIR/pytorch-vqvae"
 CELEBA_DIR="/net/scratch/echandler/datasets/img_align_celeba"
 MNIST_DIR="$PROJECT_ROOT/data/mnist"
 
-echo "Sanity check py exe: `which python`"
-echo "Sanity check host: `hostname`"
-echo "Sanity check cuda: $CUDA_VISIBLE_DEVICES"
+# Best encoder
+MODEL_FILE="$VQVAE_REPO/models/celeba-vqvae/best.pt"
+
+echo "Env sanity check: python exe: `which python`"
+echo "Env sanity check: hostname: `hostname`"
+echo "Env sanity check: cuda devices: $CUDA_VISIBLE_DEVICES"
 
 cd "$VQVAE_REPO"
-python train_cpcvqvae.py --dataset celeba \
+python train_prior.py \
     --data-folder "$CELEBA_DIR" \
-    --run-name celeba-b256-f32-opt-sched \
-    --model decoder \
-    --batch-size 256 \
+    --dataset celeba \
+    --model-file "$MODEL_FILE" \
+    --run-name sampler-van-m6 \
+    --batch-size 64 \
     --num-epochs 50 \
     --num-workers 2 \
     --num-future 32 \
