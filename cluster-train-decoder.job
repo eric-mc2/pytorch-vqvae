@@ -36,7 +36,7 @@ cd "$VQVAE_REPO"
 python train_cpcvqvae.py --dataset celeba \
     --data-folder "$CELEBA_DIR" \
     --run-name celeba-b256-f32-opt-sched \
-    --model encoder \
+    --model decoder \
     --batch-size 256 \
     --num-epochs 50 \
     --num-workers 2 \
