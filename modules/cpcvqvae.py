@@ -1,8 +1,8 @@
 import torch.nn as nn
 import logging
 
-from cpc import CPCModule
-from vqvae import VQVAEEncoder
+from modules.cpc import CPCModule
+from modules.vqvae import VQVAEEncoder
 
 logger = logging.getLogger('cpcvqvae-module')
 

@@ -110,7 +110,7 @@ def main(args):
         start_epoch = 0
 
     # Generate the samples first once
-    reconstruction = generate_samples(fixed_images, model, model, args)
+    reconstruction = generate_samples(fixed_images, model, args)
     grid = make_grid(reconstruction.cpu(), nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('reconstruction', grid, 0)
 
@@ -121,7 +121,7 @@ def main(args):
         train(train_loader, model, optimizer, args, writer)
         loss_recons, _ = test(valid_loader, model, args, writer)
         
-        reconstruction = generate_samples(fixed_images, model, model, args)
+        reconstruction = generate_samples(fixed_images, model, args)
         grid = make_grid(reconstruction.cpu(), nrow=8, range=(-1, 1), normalize=True)
         writer.add_image('reconstruction', grid, epoch + 1)
 

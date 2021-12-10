@@ -120,7 +120,7 @@ class VQVAE(nn.Module):
         super().__init__()
 
         self.encoder = VQVAEEncoder(input_dim, dim ,K)
-        self.decoder = VQVAEDecoder(self, input_dim, dim, self.encoder.codebook)
+        self.decoder = VQVAEDecoder(input_dim, dim, self.encoder.codebook)
 
     def encode(self, x):
         return self.encoder.encode(x)
@@ -130,6 +130,6 @@ class VQVAE(nn.Module):
 
     def forward(self, x):
         z_q_x_st, z_e_x, z_q_x = self.encoder(x)
-        x_tilde, z_e_x, z_q_x = self.decoder(z_q_x_st, z_e_x, z_q_x)
+        x_tilde = self.decoder(z_q_x_st)
         return x_tilde, z_e_x, z_q_x
 

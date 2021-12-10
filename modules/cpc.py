@@ -7,6 +7,7 @@ logger = logging.getLogger('cpc-module')
 
 class CPCModule(nn.Module):
     def __init__(self, K=512, K_h=128, img_window=28*28, future_window=4*4):
+        super().__init__()
         self.img_window_lin = img_window
         self.downsampling_factor = 16 # == x.shape / encoder(x).shape
         self.img_window_lin_down = self.img_window_lin // self.downsampling_factor
