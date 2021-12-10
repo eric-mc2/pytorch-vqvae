@@ -1,7 +1,9 @@
 job-id, run-name, model, status, reason
 652358, celeba-b256-f32-opt-encoder, cpc encoder, running, current best model
 652374, celeba-b256-f32-opt-sched-encoder, cpc encoder, running, better optimizer
-652375, celeba-vqvae, vanilla vqvae, running, need baseline
+652375, celeba-vqvae, vanilla vqvae, timeout, need baseline
 652378, celeba-b256-f32-opt-sched-decoder, cpc decoder, running, see if cpc makes eigenfaces
 652380, sampler-prior, ? prior, cancelled, not sure what it was prior of
 652381, sampler-van-m6, vae epoch 6 prior, running, see if vanilla model can be sampled
+652378, celeba-vqvae, vanilla vqvae, running, forgot to activate env
+652386, celeba-vqvae, vanilla vqvae, error, need baseline
