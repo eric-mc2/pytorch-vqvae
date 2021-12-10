@@ -58,8 +58,8 @@ def test(data_loader, model, prior, args, writer):
     return loss.item()
 
 def generate_samples(label, count, prior, num_channels, im_shape, args):
-    return prior.sample(count, channels=num_channels, 
-        shape=im_shape, label=label, device=args.device).cpu()
+    return prior.sample(count, shape=im_shape, channels=num_channels,
+        label=label, device=args.device).cpu()
 
 def main(args):
     writer = SummaryWriter('./logs/{0}'.format(args.run_name))
@@ -92,9 +92,9 @@ def main(args):
         json.dump(train_dataset._label_encoder, f)
 
     # Fixed images for Tensorboard
-    fixed_images, _ = next(iter(test_loader))
-    fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
-    writer.add_image('original', fixed_grid, 0)
+    # fixed_images, _ = next(iter(test_loader))
+    # fixed_grid = make_grid(fixed_images, nrow=8, range=(-1, 1), normalize=True)
+    # writer.add_image('original', fixed_grid, 0)
 
     model = VectorQuantizedVAE(num_channels, args.hidden_size_vae, args.k,
             img_window=im_shape[0]*im_shape[1], future_window=args.num_future).to(args.device)
@@ -105,8 +105,9 @@ def main(args):
 
     n_classes = len(train_dataset._label_encoder)
     logger.debug(f"Making prior with {n_classes} classes")
-    prior = GatedPixelCNN(args.hidden_size_vae, args.hidden_size_prior,
-        args.num_layers, n_classes=n_classes)
+    # prior = PixelCNN(args)
+    prior = GatedPixelCNN(args.k, args.hidden_size_prior,
+        args.num_layers, n_classes=2)
     optimizer = torch.optim.Adam(prior.parameters(), lr=args.lr)
 
     checkpoint_re = re.compile(f'model_([0-9]+)')
@@ -124,10 +125,10 @@ def main(args):
 
     prior.to(args.device)
 
-    gen_pos = generate_samples(1, 8, prior, num_channels, im_shape, args)
-    gen_neg = generate_samples(-1, 8, prior, num_channels, im_shape, args)
-    grid = make_grid(torch.cat([gen_pos, gen_neg]), nrow=8, range=(-1, 1), normalize=True)
-    writer.add_image('generated', grid, 0)
+    # gen_pos = generate_samples(1, 8, prior, num_channels, im_shape, args)
+    # gen_neg = generate_samples(-1, 8, prior, num_channels, im_shape, args)
+    # grid = make_grid(torch.cat([gen_pos, gen_neg]), nrow=8, range=(-1, 1), normalize=True)
+    # writer.add_image('generated', grid, 0)
 
     best_loss = np.Inf
     for epoch in range(start_epoch, args.num_epochs):
@@ -137,10 +138,10 @@ def main(args):
         # the classes in the train and valid splits of Mini-Imagenet
         # do not overlap.
         loss = test(valid_loader, model, prior, args, writer)
-        gen_pos = generate_samples(1, 8, prior, num_channels, im_shape, args)
-        gen_neg = generate_samples(-1, 8, prior, num_channels, im_shape, args)
-        grid = make_grid(torch.cat([gen_pos, gen_neg]), nrow=8, range=(-1, 1), normalize=True)
-        writer.add_image('generated', grid, epoch + 1)
+        # gen_pos = generate_samples(1, 8, prior, num_channels, im_shape, args)
+        # gen_neg = generate_samples(-1, 8, prior, num_channels, im_shape, args)
+        # grid = make_grid(torch.cat([gen_pos, gen_neg]), nrow=8, range=(-1, 1), normalize=True)
+        # writer.add_image('generated', grid, epoch + 1)
 
         if (epoch == 0) or (loss < best_loss):
             best_loss = loss

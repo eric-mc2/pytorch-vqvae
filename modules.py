@@ -371,8 +371,8 @@ class GatedPixelCNN(nn.Module):
         
         height, width = shape
 
-        samples = torch.zeros(count, channels, height, width).to(device)
-        labels = (label*torch.ones(count)).to(device).long()
+        samples = torch.zeros(count, channels, height, width).long().to(device)
+        labels = (label*torch.ones(count)).long().to(device)
 
         with torch.no_grad():
             for i in range(height):

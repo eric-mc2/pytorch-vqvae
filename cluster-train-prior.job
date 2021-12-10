@@ -4,7 +4,7 @@
 # USAGE:
 # sbatch cluster-train-vqvae.job
 #
-#SBATCH --job-name=vqvae
+#SBATCH --job-name=prior
 #SBATCH --mail-user=echandler@uchicago.edu
 #SBATCH --mail-type=ALL
 #
@@ -29,6 +29,9 @@ VQVAE_REPO="$VQVAE_DIR/pytorch-vqvae"
 CELEBA_DIR="/net/scratch/echandler/datasets/img_align_celeba"
 MNIST_DIR="$PROJECT_ROOT/data/mnist"
 
+# FOR DEBUG:
+CUDA_LAUNCH_BLOCKING=1
+
 # Best encoder
 MODEL_FILE="$VQVAE_REPO/models/celeba-b256-f32-opt-encoder/best.pt"
 
@@ -45,7 +48,7 @@ python pixelcnn_prior.py \
     --dataset celeba \
     --model-file "$MODEL_FILE" \
     --run-name tmp-prior \
-    --batch-size 4 \
+    --batch-size 128 \
     --num-epochs 2 \
     --num-workers 2 \
     --num-future 32 \

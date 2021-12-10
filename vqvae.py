@@ -120,7 +120,7 @@ def main(args):
     if args.device == 'cuda':
         logger.info(f'CUDA device count {torch.cuda.device_count()}')
 
-    train_dataset, valid_dataset, test_dataset, num_channels, num_pix = download_datasets(args)
+    train_dataset, valid_dataset, test_dataset, num_channels, im_shape = download_datasets(args)
 
     # Define the data loaders
     train_loader = torch.utils.data.DataLoader(train_dataset,
@@ -137,7 +137,7 @@ def main(args):
 
     if args.model == 'encoder':
         model = VectorQuantizedVAE(num_channels, args.hidden_size, args.k, 
-            img_window=num_pix, future_window=args.num_future)
+            img_window=im_shape[0]*im_shape[1], future_window=args.num_future).to(args.device)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         checkpoint_dir = encoder_checkpoint_dir
     else:
@@ -147,10 +147,10 @@ def main(args):
 
         best_checkpoint = torch.load(f'{encoder_checkpoint_dir}/best.pt')
         best_encoder = VectorQuantizedVAE(num_channels, args.hidden_size, args.k,
-            img_window=num_pix, future_window=args.num_future).to(args.device)
+            img_window=im_shape[0]*im_shape[1], future_window=args.num_future).to(args.device)
         best_encoder.load_state_dict(best_checkpoint['model_state_dict'])
 
-        model = VectorQuantizedVAEDecoder(num_channels, args.hidden_size, best_encoder.codebook)
+        model = VectorQuantizedVAEDecoder(num_channels, args.hidden_size, best_encoder.codebook).to(args.device)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     
     checkpoint_re = re.compile(f'model_([0-9]+)')
@@ -166,8 +166,6 @@ def main(args):
     else:
         start_epoch = 0
 
-    # Send model to device after maybe loading it from checkpoint
-    torch.nn.DataParallel(model).to(args.device)
 
     # Print torch model summary for compile check.
     # if args.model == 'encoder':

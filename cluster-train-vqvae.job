@@ -27,15 +27,11 @@ PROJECT_ROOT="/home/echandler/DeepL/final-project"
 VQVAE_DIR="$PROJECT_ROOT/mi-vqvae"
 VQVAE_REPO="$VQVAE_DIR/pytorch-vqvae"
 CELEBA_DIR="/net/scratch/echandler/datasets/img_align_celeba"
-#CELEBA_DIR="/net/scratch/echandler/datasets/celeba"
 MNIST_DIR="$PROJECT_ROOT/data/mnist"
 
-#. /home/echandler/.bashrc
-#conda activate vqvae
-echo "Env sanity check: py, hostname, cuda devices."
-which python
-hostname
-echo $CUDA_VISIBLE_DEVICES
+echo "Sanity check py exe: `which python`"
+echo "Sanity check host: `hostname`"
+echo "Sanity check cuda: $CUDA_VISIBLE_DEVICES"
 
 cd "$VQVAE_REPO"
 python vqvae.py --dataset celeba \
