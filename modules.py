@@ -27,51 +27,6 @@ def weights_init(m):
                 print("Skipping initialization of ", classname)
     
 
-
-class VAE(nn.Module):
-    def __init__(self, input_dim, dim, z_dim):
-        super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(input_dim, dim, 4, 2, 1),
-            nn.BatchNorm2d(dim),
-            nn.ReLU(True),
-            nn.Conv2d(dim, dim, 4, 2, 1),
-            nn.BatchNorm2d(dim),
-            nn.ReLU(True),
-            nn.Conv2d(dim, dim, 5, 1, 0),
-            nn.BatchNorm2d(dim),
-            nn.ReLU(True),
-            nn.Conv2d(dim, z_dim * 2, 3, 1, 0),
-            nn.BatchNorm2d(z_dim * 2)
-        )
-
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(z_dim, dim, 3, 1, 0),
-            nn.BatchNorm2d(dim),
-            nn.ReLU(True),
-            nn.ConvTranspose2d(dim, dim, 5, 1, 0),
-            nn.BatchNorm2d(dim),
-            nn.ReLU(True),
-            nn.ConvTranspose2d(dim, dim, 4, 2, 1),
-            nn.BatchNorm2d(dim),
-            nn.ReLU(True),
-            nn.ConvTranspose2d(dim, input_dim, 4, 2, 1),
-            nn.Tanh()
-        )
-
-        self.apply(weights_init)
-
-    def forward(self, x):
-        mu, logvar = self.encoder(x).chunk(2, dim=1)
-
-        q_z_x = Normal(mu, logvar.mul(.5).exp())
-        p_z = Normal(torch.zeros_like(mu), torch.ones_like(logvar))
-        kl_div = kl_divergence(q_z_x, p_z).sum(1).mean()
-
-        x_tilde = self.decoder(q_z_x.rsample())
-        return x_tilde, kl_div
-
-
 class VQEmbedding(nn.Module):
     def __init__(self, K, D):
         super().__init__()
@@ -110,6 +65,7 @@ class ResBlock(nn.Module):
 
     def forward(self, x):
         return x + self.block(x)
+
 
 class VectorQuantizedVAEDecoder(nn.Module):
     def __init__(self, input_dim, dim, codebook):
@@ -299,33 +255,40 @@ class GatedMaskedConv2d(nn.Module):
         self.horiz_stack.weight.data[:, :, :, -1].zero_()  # Mask final column
 
     def forward(self, x_v, x_h, h):
+        """x_v, x_h: (B, dim, D, D); h: (dim) """
         if self.mask_type == 'A':
             self.make_causal()
 
         logger.debug(f"h shape:: {h.shape}")
-        h = self.class_cond_embedding(h)
+        h = self.class_cond_embedding(h) # h_e (dim, 2*dim)
         logger.debug(f"h_e shape: {h.shape}")
         h_vert = self.vert_stack(x_v)
         logger.debug(f"h_vert shape 1: {h_vert.shape}")
-        h_vert = h_vert[:, :, :x_v.size(-1), :]
+        h_vert = h_vert[:, :, :x_v.size(-1), :] # h_vert (dim, 2*dim, D, D)
         logger.debug(f"h_vert shape 2: {h_vert.shape}")
-        out_v = self.gate(h_vert + h[:, :, None, None])
-
+        out_v = self.gate(h_vert + h[:, :, None, None]) # out_v (dim, dim, D, D)
+        
+        logger.debug(f"x_h shape: {x_h.shape}")
         h_horiz = self.horiz_stack(x_h)
-        h_horiz = h_horiz[:, :, :, :x_h.size(-2)]
-        v2h = self.vert_to_horiz(h_vert)
+        logger.debug(f"h_horiz shape: {h_horiz.shape}")
+        h_horiz = h_horiz[:, :, :, :x_h.size(-2)] # h_horiz (dim, 2*dim, D, D)
+        logger.debug(f"h_horiz2 shape: {h_horiz.shape}")
+        v2h = self.vert_to_horiz(h_vert) # v2h (dim, 2*dim, D, D)
 
+        logger.debug(f"v2h shape: {v2h.shape}")
         out = self.gate(v2h + h_horiz + h[:, :, None, None])
         if self.residual:
             out_h = self.horiz_resid(out) + x_h
         else:
             out_h = self.horiz_resid(out)
 
-        return out_v, out_h
+        logger.debug(f"out_h shape: {out_h.shape}")
+        logger.debug(f"out_v shape: {out_v.shape}")
+        return out_v, out_h # out shape (dim, dim, D, D)
 
 
 class GatedPixelCNN(nn.Module):
-    def __init__(self, input_dim=256, dim=64, n_layers=15, n_classes=10):
+    def __init__(self, input_dim=512, dim=64, n_layers=15, n_classes=10):
         super().__init__()
         self.dim = dim
 
@@ -356,47 +319,48 @@ class GatedPixelCNN(nn.Module):
         self.apply(weights_init)
 
     def forward(self, x, label):
+        """ x shape B x D x D, where D is downsampled H and W """
+        logger.debug(f"x shape: {x.shape}")
         shp = x.size() + (-1, )
-        x = self.embedding(x.view(-1)).view(shp)  # (B, H, W, C)
-        x = x.permute(0, 3, 1, 2)  # (B, C, W, W)
 
-        x_v, x_h = (x, x)
+        x = self.embedding(x.view(-1)).view(shp)  # (B, D, D, dim)
+        logger.debug(f"x shape: {x.shape}")
+        x = x.permute(0, 3, 1, 2)  # (B, dim, D, D)
+
+        x_v, x_h = (x, x)   # (B, dim, D, D)
         logger.debug(f"x_v, x_h shape: {x_v.shape}")
         for i, layer in enumerate(self.layers):
             x_v, x_h = layer(x_v, x_h, label)
 
-        return self.output_conv(x_h)
+        logger.debug(f"x_h shape: {x_h.shape}")
+        output = self.output_conv(x_h)
+        logger.debug(f"output shape: {output.shape}")
+        return output
+    
+    def generate(self, 
+        labels, 
+        shape=(8, 8), 
+        num_channels=3, 
+        batch_size=64, 
+        device='cuda'):
 
-    def sample(self, count, channels=3, shape=(8,8), label=None, device='cuda'):
-        # from https://github.com/anordertoreclaim/PixelCNN/
-        
-        height, width = shape
-
-        samples = torch.zeros(count, channels, height, width).long().to(device)
-        labels = (label*torch.ones(count)).long().to(device)
-
-        with torch.no_grad():
-            for i in range(height):
-                for j in range(width):
-                    for c in range(channels):
-                        unnormalized_probs = self.forward(samples, labels)
-                        pixel_probs = F.softmax(unnormalized_probs[:, :, c, i, j], dim=1)
-                        sampled_levels = torch.multinomial(pixel_probs, 1).squeeze().float() / (self.k - 1)
-                        samples[:, c, i, j] = sampled_levels
-
-        return samples
-
-    def generate(self, labels, shape=(8, 8), batch_size=64, device='cuda'):
         x = torch.zeros((batch_size, *shape), dtype=torch.int64).to(device)
+        samples = torch.zeros((batch_size, num_channels, *shape), dtype=torch.int64).to(device)
         labels = labels.to(device)
 
-        logger.debug(f"x shape: {x.shape}")
-        logger.debug(f"labels shape: {labels.shape}")
+        logger.debug(f"generate: x shape: {samples.shape}")
+        logger.debug(f"generate: labels shape: {labels.shape}")
         for i in range(shape[0]):
             for j in range(shape[1]):
-                logits = self.forward(x, labels)
-                probs = F.softmax(logits[:, :, i, j], -1)
-                x.data[:, i, j].copy_(
-                    probs.multinomial(1).squeeze().data
-                )
-        return x
+                for c in range(num_channels):
+                    logits = self.forward(x, labels) # (B, D, D, input_dim)
+                    logits = logits.permute(0, 2, 3, 1).contiguous()
+                    logger.debug(f"generate: logits shape: {logits.shape}")
+                    probs = F.softmax(logits[:, i, j, :], -1)
+                    logger.debug(f"generate: probs shape: {probs.shape}")
+                     # shape [N,H,W,C], values [index of most likely pixel value]
+                    sampled_levels = probs.multinomial(1).squeeze().data
+                    logger.debug(f"generage: samp shape: {sampled_levels.shape}")
+                     #shape [N,H,W,C]
+                    samples[:, c, i, j] = sampled_levels 
+        return samples

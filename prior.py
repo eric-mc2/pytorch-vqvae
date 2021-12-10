@@ -16,14 +16,18 @@ logger = logging.getLogger('pixelcnn-prior')
 
 def train(data_loader, model, prior, optimizer, args, writer):
     for images, labels in data_loader:
+        logger.debug(f'images shape: {images.shape}')
         with torch.no_grad():
             images = images.to(args.device)
             latents = model.encode(images)
             latents = latents.detach()
 
+        logger.debug(f'latents shape: {latents.shape}')
         labels = labels.to(args.device)
         logits = prior(latents, labels)
+        logger.debug(f'logits shape: {logits.shape}')
         logits = logits.permute(0, 2, 3, 1).contiguous()
+        logger.debug(f'logits shape: {logits.shape}')
 
         optimizer.zero_grad()
         loss = F.cross_entropy(logits.view(-1, args.k),
@@ -49,7 +53,6 @@ def test(data_loader, model, prior, args, writer):
             logits = logits.permute(0, 2, 3, 1).contiguous()
             loss += F.cross_entropy(logits.view(-1, args.k),
                                     latents.view(-1))
-
         loss /= len(data_loader)
 
     # Logs
@@ -57,10 +60,11 @@ def test(data_loader, model, prior, args, writer):
 
     return loss.item()
 
-def generate_samples(prior, im_shape, batch_size, K, device):
+def generate_samples(prior, im_shape, num_channels, batch_size, K, device):
     # XXX: label must be one batch long!!!
-    label = torch.tensor([0,1]).expand(64, 2).contiguous().view(-1).long()
-    x_tilde = prior.generate(label, im_shape, batch_size, device)
+    label = torch.tensor([0,1]).expand(32, 2).contiguous().view(-1).long()
+    x_tilde = prior.generate(label, im_shape, num_channels, batch_size, device)
+    logger.debug(f"x_tilde size: {x_tilde.shape}")
     images = x_tilde.cpu().data.float() / (K - 1)
     return images
     
@@ -126,9 +130,13 @@ def main(args):
 
     prior.to(args.device)
 
-    samples = generate_samples(prior, im_shape, args.batch_size ,args.k, args.device)
+    samples = generate_samples(prior, (16,16), num_channels, args.batch_size ,args.k, args.device)
     grid = make_grid(samples, nrow=8, range=(-1, 1), normalize=True)
     writer.add_image('generated', grid, 0)
+
+    samples = generate_samples(prior, (16,16), 1, args.batch_size ,args.k, args.device)
+    grid = make_grid(samples, nrow=8, range=(-1, 1), normalize=True)
+    writer.add_image('generated-bw', grid, 0)
 
     best_loss = np.Inf
     for epoch in range(start_epoch, args.num_epochs):
@@ -139,9 +147,13 @@ def main(args):
         # do not overlap.
         loss = test(valid_loader, model, prior, args, writer)
         
-        samples = generate_samples(prior, im_shape, args.batch_size ,args.k, args.device)
+        samples = generate_samples(prior, (16,16), num_channels, args.batch_size ,args.k, args.device)
         grid = make_grid(samples, nrow=8, range=(-1, 1), normalize=True)
         writer.add_image('generated', grid, epoch + 1)
+
+        samples = generate_samples(prior, (16,16), 1, args.batch_size ,args.k, args.device)
+        grid = make_grid(samples, nrow=8, range=(-1, 1), normalize=True)
+        writer.add_image('generated-bw', grid, epoch + 1)
 
         if (epoch == 0) or (loss < best_loss):
             best_loss = loss

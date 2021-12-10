@@ -29,8 +29,6 @@ VQVAE_REPO="$VQVAE_DIR/pytorch-vqvae"
 CELEBA_DIR="/net/scratch/echandler/datasets/img_align_celeba"
 MNIST_DIR="$PROJECT_ROOT/data/mnist"
 
-CUDA_LAUNCH_BLOCKING=1
-
 # Best encoder
 MODEL_FILE="$VQVAE_REPO/models/celeba-b256-f32-opt-encoder/best.pt"
 
@@ -43,10 +41,10 @@ python prior.py \
     --data-folder "$CELEBA_DIR" \
     --dataset celeba \
     --model-file "$MODEL_FILE" \
-    --run-name dbg-sample \
-    --batch-size 128 \
+    --run-name sampler \
+    --batch-size 64 \
     --num-epochs 50 \
     --num-workers 2 \
     --num-future 32 \
     --device cuda \
-    --logger-lvl DEBUG
+    --logger-lvl INFO
