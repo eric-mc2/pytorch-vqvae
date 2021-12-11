@@ -5,7 +5,7 @@ from torchvision import transforms, datasets
 from torchvision.utils import save_image, make_grid
 
 from modules import VectorQuantizedVAE, to_scalar
-from datasets import MiniImagenet
+from datasets import MiniImagenet, download_datasets
 
 from tensorboardX import SummaryWriter
 
@@ -61,47 +61,7 @@ def main(args):
     writer = SummaryWriter('./logs/{0}'.format(args.output_folder))
     save_filename = './models/{0}'.format(args.output_folder)
 
-    if args.dataset in ['mnist', 'fashion-mnist', 'cifar10']:
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        ])
-        if args.dataset == 'mnist':
-            # Define the train & test datasets
-            train_dataset = datasets.MNIST(args.data_folder, train=True,
-                download=True, transform=transform)
-            test_dataset = datasets.MNIST(args.data_folder, train=False,
-                transform=transform)
-            num_channels = 1
-        elif args.dataset == 'fashion-mnist':
-            # Define the train & test datasets
-            train_dataset = datasets.FashionMNIST(args.data_folder,
-                train=True, download=True, transform=transform)
-            test_dataset = datasets.FashionMNIST(args.data_folder,
-                train=False, transform=transform)
-            num_channels = 1
-        elif args.dataset == 'cifar10':
-            # Define the train & test datasets
-            train_dataset = datasets.CIFAR10(args.data_folder,
-                train=True, download=True, transform=transform)
-            test_dataset = datasets.CIFAR10(args.data_folder,
-                train=False, transform=transform)
-            num_channels = 3
-        valid_dataset = test_dataset
-    elif args.dataset == 'miniimagenet':
-        transform = transforms.Compose([
-            transforms.RandomResizedCrop(128),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        ])
-        # Define the train, valid & test datasets
-        train_dataset = MiniImagenet(args.data_folder, train=True,
-            download=True, transform=transform)
-        valid_dataset = MiniImagenet(args.data_folder, valid=True,
-            download=True, transform=transform)
-        test_dataset = MiniImagenet(args.data_folder, test=True,
-            download=True, transform=transform)
-        num_channels = 3
+    train_dataset, valid_dataset, test_dataset, num_channels, im_shape = download_datasets(args)
 
     # Define the data loaders
     train_loader = torch.utils.data.DataLoader(train_dataset,
@@ -189,9 +149,6 @@ if __name__ == '__main__':
     # Device
     args.device = torch.device(args.device
         if torch.cuda.is_available() else 'cpu')
-    # Slurm
-    if 'SLURM_JOB_ID' in os.environ:
-        args.output_folder += '-{0}'.format(os.environ['SLURM_JOB_ID'])
     if not os.path.exists('./models/{0}'.format(args.output_folder)):
         os.makedirs('./models/{0}'.format(args.output_folder))
     args.steps = 0
