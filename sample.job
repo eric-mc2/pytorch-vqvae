@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Train vqvae
+# USAGE:
+# sbatch cluster-train-vqvae.job
+#
+#SBATCH --job-name=sample-vqvae-base
+#SBATCH --mail-user=echandler@uchicago.edu
+#SBATCH --mail-type=ALL
+#
+#SBATCH --output=/home/echandler/DeepL/final-project/mi-vqvae/output/%j.%N.stdout
+#SBATCH --error=/home/echandler/DeepL/final-project/mi-vqvae/output/%j.%N.stderr
+#
+#OPTIONS FOR JOB SIZE:
+#SBATCH --partition=general
+#SBATCH --nodes=1
+# NOTE: always set ntasks==gpus or else it doesnt allocate right?
+#SBATCH --ntasks=1
+#SBATCH --gpus=1
+#SBATCH --gpus-per-task=1
+#SBATCH --mem-per-cpu=32G
+#SBATCH --time=03:59:00
+#
+
+PROJECT_ROOT="/home/echandler/DeepL/final-project"
+VQVAE_DIR="$PROJECT_ROOT/mi-vqvae"
+VQVAE_REPO="$VQVAE_DIR/pytorch-vqvae"
+CELEBA_DIR="/net/scratch/echandler/datasets/img_align_celeba"
+MNIST_DIR="$PROJECT_ROOT/data/mnist"
+
+echo "Sanity check py exe: `which python`"
+echo "Sanity check host: `hostname`"
+echo "Sanity check cuda: $CUDA_VISIBLE_DEVICES"
+
+MODEL_FILE="$VQVAE_REPO/models/train-baseline/best.pt"
+
+cd "$VQVAE_REPO"
+python pixelcnn_prior.py \
+    --dataset celeba \
+    --data-folder "$CELEBA_DIR" \
+    --output-folder sample-baseline/1 \
+    --batch-size 256 \
+    --num-epochs 50 \
+    --num-workers 2 \
+    --device cuda
