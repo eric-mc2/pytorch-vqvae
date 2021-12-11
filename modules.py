@@ -3,8 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions.normal import Normal
 from torch.distributions import kl_divergence
-
+import logging
 from functions import vq, vq_st
+
+logger = logging.getLogger('modules')
 
 def to_scalar(arr):
     if type(arr) == list:
@@ -166,6 +168,7 @@ class GatedMaskedConv2d(nn.Module):
         assert kernel % 2 == 1, print("Kernel size must be odd")
         self.mask_type = mask_type
         self.residual = residual
+        self.dim = dim
 
         self.class_cond_embedding = nn.Embedding(
             n_classes, 2 * dim
@@ -204,11 +207,16 @@ class GatedMaskedConv2d(nn.Module):
         h_vert = h_vert[:, :, :x_v.size(-1), :]
         out_v = self.gate(h_vert + h[:, :, None, None])
 
+        logger.info(f"x_h shape: {x_h.shape}")
+        logger.info(f"horiz_stack func: {self.dim} -> {self.dim*2}")
         h_horiz = self.horiz_stack(x_h)
         h_horiz = h_horiz[:, :, :, :x_h.size(-2)]
         v2h = self.vert_to_horiz(h_vert)
 
-        out = self.gate(v2h + h_horiz + h[:, :, None, None])
+        logger.info(f'v2h shape: {v2h.shape}')
+        logger.info(f'h_horiz shape: {h_horiz.shape}')
+        logger.info(f'h shape: {h.shape}')
+        out = self.gate(v2h + h_horiz + h[:, :, None, None]) 
         if self.residual:
             out_h = self.horiz_resid(out) + x_h
         else:
@@ -253,6 +261,7 @@ class GatedPixelCNN(nn.Module):
         x = self.embedding(x.view(-1)).view(shp)  # (B, H, W, C)
         x = x.permute(0, 3, 1, 2)  # (B, C, W, W)
 
+        logger.info(f'x_v shape: {x.shape}')
         x_v, x_h = (x, x)
         for i, layer in enumerate(self.layers):
             x_v, x_h = layer(x_v, x_h, label)

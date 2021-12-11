@@ -33,13 +33,15 @@ echo "Sanity check host: `hostname`"
 echo "Sanity check cuda: $CUDA_VISIBLE_DEVICES"
 
 MODEL_FILE="$VQVAE_REPO/models/train-baseline/best.pt"
+CUDA_LAUNCH_BLOCKING=1
 
 cd "$VQVAE_REPO"
 python pixelcnn_prior.py \
     --dataset celeba \
     --data-folder "$CELEBA_DIR" \
-    --output-folder sample-baseline/1 \
-    --batch-size 256 \
+    --model-file "$MODEL_FILE" \
+    --output-folder sample-baseline/6 \
+    --batch-size 128 \
     --num-epochs 50 \
     --num-workers 2 \
     --device cuda

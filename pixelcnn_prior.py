@@ -1,3 +1,5 @@
+
+import logging
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -70,6 +72,7 @@ def generate_samples(prior, epoch, args):
     return images
 
 def main(args):
+    logging.basicConfig(level=logging.INFO)
     writer = SummaryWriter('./logs/{0}'.format(args.output_folder))
     save_filename = './models/{0}/prior.pt'.format(args.output_folder)
 
@@ -95,7 +98,7 @@ def main(args):
     writer.add_image('original', fixed_grid, 0)
 
     model = VectorQuantizedVAE(num_channels, args.hidden_size_vae, args.k).to(args.device)
-    with open(args.model, 'rb') as f:
+    with open(args.model_file, 'rb') as f:
         state_dict = torch.load(f)
         model.load_state_dict(state_dict)
     model.eval()
@@ -112,7 +115,7 @@ def main(args):
         # do not overlap.
         loss = test(valid_loader, model, prior, args, writer)
 
-        sample_images = generate_samples(prior, args)
+        sample_images = generate_samples(prior, epoch, args)
         sample_grid = make_grid(sample_images, nrow=10, range=(-1, 1), normalize=True)
         writer.add_image('generated', sample_grid, epoch+1)
 
@@ -133,7 +136,7 @@ if __name__ == '__main__':
         help='name of the data folder')
     parser.add_argument('--dataset', type=str,
         help='name of the dataset (mnist, fashion-mnist, cifar10, miniimagenet)')
-    parser.add_argument('--model', type=str,
+    parser.add_argument('--model-file', type=str,
         help='filename containing the model')
 
     # Latent space
